@@ -4,4 +4,6 @@ public enum LLMEvent: Equatable, Sendable {
     case delta(requestID: Int, text: String)
     /// La réponse est complète.
     case finished(requestID: Int)
+    /// La requête n'aura pas de réponse : session indisponible, process mort, ou erreur renvoyée par le CLI.
+    case failed(requestID: Int, message: String)
 }

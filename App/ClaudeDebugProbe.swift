@@ -47,7 +47,23 @@ final class ClaudeDebugProbe {
                 handle(event)
             }
         }
+        Task {
+            for await state in session.states {
+                handle(state)
+            }
+        }
         return session
+    }
+
+    private func handle(_ state: SessionState) {
+        switch state {
+        case .restarting(let attempt):
+            notch.display(.text("Claude s'est arrêté, redémarrage (tentative \(attempt))…"))
+        case .failed(let message):
+            notch.display(.text(message))
+        case .running, .stopped:
+            break
+        }
     }
 
     private func handle(_ event: LLMEvent) {
@@ -62,6 +78,8 @@ final class ClaudeDebugProbe {
             guard let timeToFirstToken else { return }
             let milliseconds = Int(timeToFirstToken / .milliseconds(1))
             notch.display(.text("\(response)\n\npremier token : \(milliseconds) ms"))
+        case .failed(_, let message):
+            notch.display(.text("Échec : \(message)"))
         }
     }
 

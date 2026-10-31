@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "ClaudeSession")
 
 /// Un process `claude` lancé, avec ses pipes : écriture sur stdin, lecture de stdout ligne par ligne.
 final class ClaudeProcess {
@@ -13,44 +16,61 @@ final class ClaudeProcess {
         let process = Process()
         let inputPipe = Pipe()
         let outputPipe = Pipe()
+        let errorPipe = Pipe()
         process.executableURL = configuration.executableURL
         process.arguments = configuration.arguments
         process.environment = configuration.environment
         process.currentDirectoryURL = configuration.workingDirectory
         process.standardInput = inputPipe
         process.standardOutput = outputPipe
-        process.standardError = FileHandle.nullDevice
-        try process.run()
+        process.standardError = errorPipe
+        // Écrire dans le pipe d'un process mort enverrait SIGPIPE, qui tuerait l'app : on veut une erreur à la place.
+        _ = fcntl(inputPipe.fileHandleForWriting.fileDescriptor, F_SETNOSIGPIPE, 1)
+        do {
+            try process.run()
+        } catch {
+            throw ClaudeSessionError.launchFailed(reason: error.localizedDescription)
+        }
 
         self.process = process
         input = inputPipe.fileHandleForWriting
-        let (lines, continuation) = AsyncStream<String>.makeStream()
-        outputLines = lines
-        let output = outputPipe.fileHandleForReading
+        outputLines = Self.lines(of: outputPipe.fileHandleForReading)
+        let errorLines = Self.lines(of: errorPipe.fileHandleForReading)
         Task.detached {
-            // Découpage sur `\n` uniquement (JSON Lines) : `AsyncLineSequence` couperait aussi sur U+2028,
-            // que le CLI laisse tel quel dans les chaînes JSON.
-            var buffer: [UInt8] = []
-            do {
-                for try await byte in output.bytes {
-                    if byte == UInt8(ascii: "\n") {
-                        continuation.yield(String(decoding: buffer, as: UTF8.self))
-                        buffer.removeAll(keepingCapacity: true)
-                    } else {
-                        buffer.append(byte)
-                    }
-                }
-            } catch {}
-            continuation.finish()
+            for await line in errorLines {
+                logger.error("stderr claude : \(line, privacy: .private)")
+            }
         }
     }
 
-    /// Écrit une ligne sur stdin.
+    /// Écrit une ligne sur stdin. Lève une erreur si le process est mort.
     func write(line: String) throws {
         try input.write(contentsOf: Data((line + "\n").utf8))
     }
 
     func terminate() {
-        process.terminate()
+        if process.isRunning {
+            process.terminate()
+        }
+    }
+
+    /// Lit un pipe ligne par ligne, avec un `readabilityHandler` propre à chaque pipe. Avec `FileHandle.bytes`,
+    /// un lecteur en attente sur un pipe muet (stderr) bloquait la lecture de stdout.
+    private static func lines(of handle: FileHandle) -> AsyncStream<String> {
+        let (lines, continuation) = AsyncStream<String>.makeStream()
+        let splitter = LineSplitter()
+        handle.readabilityHandler = { handle in
+            let data = handle.availableData
+            guard !data.isEmpty else {
+                // Fin du flux : le process est mort.
+                handle.readabilityHandler = nil
+                continuation.finish()
+                return
+            }
+            for line in splitter.append(data) {
+                continuation.yield(line)
+            }
+        }
+        return lines
     }
 }
