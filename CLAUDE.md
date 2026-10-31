@@ -76,7 +76,8 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - **Ne pas inventer de flags.** Vérifier les options exactes avec `claude --help` avant d'écrire le code de lancement, et documenter dans ce fichier les flags retenus.
 - Les apps GUI n'héritent pas du PATH du shell : résoudre le chemin du binaire via `/bin/zsh -lc 'command -v claude'` au premier lancement, le mettre en cache, et permettre de le surcharger dans les réglages. On met en cache le chemin renvoyé (`~/.local/bin/claude`, un lien symbolique), jamais sa cible versionnée, qui change à chaque mise à jour du CLI.
 - Parsing ligne par ligne du JSON en sortie. Une ligne invalide est loguée et ignorée, elle ne fait jamais planter la session.
-- Si un nouveau trigger arrive pendant une génération, la réponse en cours est marquée obsolète via son `requestId` et n'est plus affichée.
+- Si un nouveau trigger arrive pendant une génération, la réponse en cours est marquée obsolète via son `requestId` et n'est plus affichée. Elle est aussi interrompue, sinon le CLI la terminerait avant de traiter la nouvelle requête : `{"type":"control_request","request_id":…,"request":{"subtype":"interrupt"}}` sur stdin. C'est le protocole des SDK Claude, absent de `claude --help`, vérifié sur 2.1.310 : la réponse interrompue se termine par un `result` avec `is_error: true` et `terminal_reason: aborted_streaming`, et une interruption sans réponse en cours ne produit aucun `result`.
+- Haiku produit parfois des blocs de réflexion (`thinking_delta`) avant le texte : ils ne sont jamais affichés, mais coûtent de la latence. `--effort low` est une piste à mesurer à l'étape 5.
 - Si le process meurt : redémarrage automatique avec backoff, état visible dans l'UI.
 - Protocole `LLMSession` pour pouvoir mocker en test.
 
