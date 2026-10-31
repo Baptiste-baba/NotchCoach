@@ -63,7 +63,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Implémentation : `ParakeetEngine` (FluidAudio).
 
 **Conversation**
-- `TranscriptBuffer` : fenêtre glissante des derniers échanges (environ 3 minutes ou N tokens, la valeur la plus petite), formatée pour le prompt.
+- `TranscriptBuffer` : accumule les segments finaux et fournit, à chaque déclenchement, uniquement les segments nouveaux depuis le dernier message envoyé, formatés pour le prompt. Un segment n'est jamais envoyé deux fois : la session `claude` restant la même pendant tout le call, son historique sert de mémoire de la conversation (environ 15 000 tokens par heure de call, sans doublons).
 - `TriggerDetector` : logique pure, sans I/O, entièrement testée. Déclenche quand :
   - le dernier segment final vient de `.prospect`,
   - suivi de ~700 ms sans nouveau segment prospect,
