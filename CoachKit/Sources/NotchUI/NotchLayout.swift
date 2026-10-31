@@ -10,16 +10,8 @@ struct NotchLayout {
     var pillTopMargin: CGFloat = 4
 
     func placement(for screen: ScreenMetrics) -> NotchPlacement {
-        if let left = screen.auxiliaryTopLeftArea, let right = screen.auxiliaryTopRightArea {
-            // La notch occupe l'espace entre les deux zones de barre de menus.
-            let height = screen.safeAreaTopInset
-            let frame = CGRect(
-                x: left.maxX - notchSideExtension,
-                y: screen.frame.maxY - height,
-                width: right.minX - left.maxX + 2 * notchSideExtension,
-                height: height
-            )
-            return NotchPlacement(frame: frame, style: .notch)
+        if let notch = notchFrame(on: screen) {
+            return NotchPlacement(frame: notch.insetBy(dx: -notchSideExtension, dy: 0), style: .notch)
         }
 
         let frame = CGRect(
@@ -29,5 +21,23 @@ struct NotchLayout {
             height: pillSize.height
         )
         return NotchPlacement(frame: frame, style: .pill)
+    }
+
+    /// Cadre de la notch matérielle, ou `nil` si l'écran n'en a pas ou si ses mesures sont incohérentes
+    /// (une seule zone de barre de menus, hauteur nulle, zones qui se chevauchent) : on retombe alors sur la pilule.
+    private func notchFrame(on screen: ScreenMetrics) -> CGRect? {
+        guard let left = screen.auxiliaryTopLeftArea,
+              let right = screen.auxiliaryTopRightArea,
+              screen.safeAreaTopInset > 0,
+              right.minX > left.maxX
+        else { return nil }
+
+        // La notch occupe l'espace entre les deux zones de barre de menus.
+        return CGRect(
+            x: left.maxX,
+            y: screen.frame.maxY - screen.safeAreaTopInset,
+            width: right.minX - left.maxX,
+            height: screen.safeAreaTopInset
+        )
     }
 }

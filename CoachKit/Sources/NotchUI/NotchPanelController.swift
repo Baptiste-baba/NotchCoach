@@ -1,5 +1,8 @@
 import AppKit
+import os
 import SwiftUI
+
+private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "NotchUI")
 
 /// Possède le panel de la notch et gère son affichage.
 /// Le panel est toujours sur l'écran principal et le suit quand la configuration des écrans change.
@@ -9,6 +12,8 @@ public final class NotchPanelController {
     private let panel: NotchPanel
     private let hostingView: NSHostingView<NotchView>
     private var screenObserver: (any NSObjectProtocol)?
+    /// Une notification d'écran déjà en file peut arriver après `hide()` : elle ne doit pas réafficher le panel.
+    private var isShown = false
 
     public init() {
         panel = NotchPanel()
@@ -20,8 +25,8 @@ public final class NotchPanelController {
 
     /// Affiche le panel, positionné sur la notch ou en pilule sans notch.
     public func show() {
+        isShown = true
         reposition()
-        panel.orderFrontRegardless()
         guard screenObserver == nil else { return }
         screenObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.didChangeScreenParametersNotification,
@@ -34,6 +39,7 @@ public final class NotchPanelController {
 
     /// Masque le panel.
     public func hide() {
+        isShown = false
         panel.orderOut(nil)
         if let screenObserver {
             NotificationCenter.default.removeObserver(screenObserver)
@@ -42,10 +48,18 @@ public final class NotchPanelController {
     }
 
     private func reposition() {
+        guard isShown else { return }
         // L'écran principal choisi dans Réglages > Moniteurs est toujours le premier ; `NSScreen.main` suit le focus.
-        guard let screen = NSScreen.screens.first else { return }
+        guard let screen = NSScreen.screens.first else {
+            // MacBook fermé sans écran externe : le retour d'un écran déclenchera un nouveau repositionnement.
+            logger.notice("Aucun écran disponible, panel masqué")
+            panel.orderOut(nil)
+            return
+        }
         let placement = layout.placement(for: ScreenMetrics(screen: screen))
+        logger.debug("Panel \(String(describing: placement.style), privacy: .public) en \(placement.frame.debugDescription, privacy: .public)")
         hostingView.rootView = NotchView(style: placement.style)
         panel.setFrame(placement.frame, display: true)
+        panel.orderFrontRegardless()
     }
 }
