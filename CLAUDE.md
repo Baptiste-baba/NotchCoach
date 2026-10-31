@@ -97,8 +97,35 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 ## Confidentialité
 
 - Aucun audio n'est écrit sur disque. Jamais.
-- Les transcriptions restent en mémoire et sont effacées à la fin du call. Un export manuel pourra exister plus tard, désactivé par défaut.
+- La transcription se fait en local, mais le texte de la conversation est envoyé à Anthropic par le CLI `claude` pour générer les suggestions. C'est le seul flux de données qui quitte la machine.
+- Le prospect est informé en début de call qu'un assistant prend des notes (obligation d'information du RGPD).
+- Les transcriptions restent en mémoire et sont effacées à la fin du call. Un export manuel pourra exister plus tard, désactivé par défaut. Ça vaut aussi pour le process `claude`, lancé sans persistance de session (voir Sécurité).
 - Logs via `os.Logger`. Le contenu des transcriptions et des suggestions est toujours logué avec `privacy: .private`.
+
+## Sécurité
+
+Ce que dit le prospect arrive directement dans le prompt : c'est une entrée non fiable (risque d'injection de prompt). Le process `claude` doit donc être isolé de tout ce qui peut agir au-delà de la génération de texte.
+
+**Isolation du process `claude`**
+- Il ne charge rien de la config globale de l'utilisateur : ni serveurs MCP, ni plugins, ni hooks, ni `~/.claude/CLAUDE.md`.
+- Flags retenus, présents dans `claude --help`. Un test doit vérifier que plugins et hooks sont réellement coupés :
+  - `--tools ""` : aucun outil intégré.
+  - `--strict-mcp-config`, sans `--mcp-config` : aucun serveur MCP.
+  - `--setting-sources` restreint : les réglages utilisateur ne sont pas chargés.
+  - `--system-prompt` : remplace le prompt par défaut de Claude Code.
+  - `--no-session-persistence` : rien n'est écrit dans `~/.claude/projects/`.
+- `--bare` est exclu : il ne lit jamais l'OAuth ni le trousseau, donc il est incompatible avec l'abonnement Max.
+- Jamais de `--dangerously-skip-permissions` ni de mode `bypassPermissions`.
+
+**Lancement du sous-processus**
+- `Process` avec un `executableURL` absolu et un tableau d'arguments. Jamais via un shell.
+- Environnement construit explicitement avec le strict nécessaire, jamais hérité tel quel. `ANTHROPIC_API_KEY` n'est jamais transmis : sinon la session bascule sur la facturation API.
+- Le contenu de la conversation passe uniquement par stdin, jamais en argument (visible avec `ps`).
+- Le chemin du binaire résolu via le PATH est vérifié (chemin absolu, fichier exécutable) et affiché dans les réglages.
+- Le process suit le cycle de vie de l'app : terminé à la fin du call et à la fermeture de l'app. Il ne doit pas survivre à un crash (stdin se ferme à la mort du parent : vérifier que `claude` se termine bien dans ce cas).
+
+**Dépendances**
+- FluidAudio est épinglée à une version exacte. Vérifier d'où viennent les modèles qu'elle télécharge et figer leur version.
 
 ## Permissions et distribution
 
