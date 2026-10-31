@@ -14,6 +14,7 @@ public final class NotchPanelController {
     private var screenObserver: (any NSObjectProtocol)?
     /// Une notification d'écran déjà en file peut arriver après `hide()` : elle ne doit pas réafficher le panel.
     private var isShown = false
+    private var content: NotchContent = .empty
 
     public init() {
         panel = NotchPanel()
@@ -39,7 +40,8 @@ public final class NotchPanelController {
 
     /// Change le contenu affiché : `.empty` replie le panel, `.text` le déplie sous la notch.
     public func display(_ content: NotchContent) {
-        fatalError("TODO")
+        self.content = content
+        reposition()
     }
 
     /// Masque le panel.
@@ -61,9 +63,14 @@ public final class NotchPanelController {
             panel.orderOut(nil)
             return
         }
-        let placement = layout.placement(for: ScreenMetrics(screen: screen))
+        let metrics = ScreenMetrics(screen: screen)
+        let placement = content == .empty ? layout.placement(for: metrics) : layout.expandedPlacement(for: metrics)
         logger.debug("Panel \(String(describing: placement.style), privacy: .public) en \(placement.frame.debugDescription, privacy: .public)")
-        hostingView.rootView = NotchView(style: placement.style)
+        hostingView.rootView = NotchView(
+            style: placement.style,
+            contentTopInset: placement.contentTopInset,
+            content: content
+        )
         panel.setFrame(placement.frame, display: true)
         panel.orderFrontRegardless()
     }

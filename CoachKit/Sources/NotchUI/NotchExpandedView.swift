@@ -5,6 +5,12 @@ struct NotchExpandedView: View {
     var text: String
 
     var body: some View {
-        EmptyView()
+        Text(text)
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(.white)
+            .multilineTextAlignment(.leading)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 10)
     }
 }

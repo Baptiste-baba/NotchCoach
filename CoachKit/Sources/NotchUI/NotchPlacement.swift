@@ -12,4 +12,6 @@ struct NotchPlacement: Equatable, Sendable {
     /// Cadre du panel, dans le repère global d'AppKit.
     var frame: CGRect
     var style: Style
+    /// Hauteur réservée en haut du panel à la notch matérielle : le contenu commence en dessous.
+    var contentTopInset: CGFloat = 0
 }

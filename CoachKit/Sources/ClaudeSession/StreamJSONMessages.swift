@@ -11,6 +11,24 @@ struct StreamInputMessage: Encodable, Equatable {
     var message: Message
 }
 
+/// Demande d'interruption écrite sur stdin : arrête la réponse en cours, qui se termine alors par une ligne
+/// `result` avec `is_error: true` (`terminal_reason: aborted_streaming`). Sans réponse en cours, elle n'a aucun
+/// effet et ne produit pas de ligne `result`. Protocole des SDK Claude, absent de `claude --help`.
+struct StreamInterruptRequest: Encodable, Equatable {
+    struct Request: Encodable, Equatable {
+        var subtype = "interrupt"
+    }
+
+    var type = "control_request"
+    var requestID: String
+    var request = Request()
+
+    enum CodingKeys: String, CodingKey {
+        case type, request
+        case requestID = "request_id"
+    }
+}
+
 /// Ligne de sortie du CLI, réduite aux champs utiles. Selon `type`, la plupart sont absents.
 struct StreamOutputLine: Decodable {
     struct Event: Decodable {
