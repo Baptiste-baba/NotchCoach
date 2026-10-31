@@ -16,7 +16,7 @@ public actor ClaudeSession: LLMSession {
     private let locator = ClaudeBinaryLocator()
     private let encoder = StreamJSONEncoder()
     private let parser = StreamJSONParser()
-    private let backoff = RestartBackoff()
+    private let backoff: RestartBackoff
 
     private var process: ClaudeProcess?
     /// Incrémenté à chaque lancement et à chaque arrêt : la fin de lecture d'un ancien process, ou une boucle
@@ -42,9 +42,15 @@ public actor ClaudeSession: LLMSession {
     }
 
     public init(options: ClaudeSessionOptions) {
+        self.init(options: options, backoff: RestartBackoff())
+    }
+
+    /// Délais de redémarrage réglables : utilisé par les tests pour ne pas attendre plusieurs secondes.
+    init(options: ClaudeSessionOptions, backoff: RestartBackoff) {
         (events, eventsContinuation) = AsyncStream.makeStream()
         (states, statesContinuation) = AsyncStream.makeStream()
         self.options = options
+        self.backoff = backoff
     }
 
     public func start() async throws {
