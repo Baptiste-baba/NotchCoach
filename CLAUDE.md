@@ -74,7 +74,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Actor qui possède le process `claude` et ses pipes stdin/stdout.
 - Lancé au démarrage du call avec : modèle Haiku, sortie et entrée `stream-json`, system prompt construit depuis le playbook, aucun outil autorisé, répertoire de travail dédié et vide.
 - **Ne pas inventer de flags.** Vérifier les options exactes avec `claude --help` avant d'écrire le code de lancement, et documenter dans ce fichier les flags retenus.
-- Les apps GUI n'héritent pas du PATH du shell : résoudre le chemin du binaire via `/bin/zsh -lc 'command -v claude'` au premier lancement, le mettre en cache, et permettre de le surcharger dans les réglages.
+- Les apps GUI n'héritent pas du PATH du shell : résoudre le chemin du binaire via `/bin/zsh -lc 'command -v claude'` au premier lancement, le mettre en cache, et permettre de le surcharger dans les réglages. On met en cache le chemin renvoyé (`~/.local/bin/claude`, un lien symbolique), jamais sa cible versionnée, qui change à chaque mise à jour du CLI.
 - Parsing ligne par ligne du JSON en sortie. Une ligne invalide est loguée et ignorée, elle ne fait jamais planter la session.
 - Si un nouveau trigger arrive pendant une génération, la réponse en cours est marquée obsolète via son `requestId` et n'est plus affichée.
 - Si le process meurt : redémarrage automatique avec backoff, état visible dans l'UI.
@@ -109,18 +109,22 @@ Ce que dit le prospect arrive directement dans le prompt : c'est une entrée non
 
 **Isolation du process `claude`**
 - Il ne charge rien de la config globale de l'utilisateur : ni serveurs MCP, ni plugins, ni hooks, ni `~/.claude/CLAUDE.md`.
-- Flags retenus, présents dans `claude --help`. Un test doit vérifier que plugins et hooks sont réellement coupés :
-  - `--tools ""` : aucun outil intégré.
-  - `--strict-mcp-config`, sans `--mcp-config` : aucun serveur MCP.
-  - `--setting-sources` restreint : les réglages utilisateur ne sont pas chargés.
+- Ligne de commande retenue, vérifiée sur Claude Code 2.1.310 :
+  `claude -p --input-format stream-json --output-format stream-json --verbose --include-partial-messages --model haiku --tools "" --strict-mcp-config --setting-sources "" --no-session-persistence --system-prompt <prompt>`
+  - `--tools ""` : aucun outil intégré (l'événement `system/init` liste `tools: []`).
+  - `--strict-mcp-config`, sans `--mcp-config` : aucun serveur MCP (`mcp_servers: []`).
+  - `--setting-sources ""` : aucun réglage utilisateur, donc aucun plugin ni hook de l'utilisateur. Seuls les 3 plugins intégrés au CLI restent listés.
   - `--system-prompt` : remplace le prompt par défaut de Claude Code.
-  - `--no-session-persistence` : rien n'est écrit dans `~/.claude/projects/`.
+  - `--no-session-persistence` : rien n'est écrit dans `~/.claude/projects/` (vérifié).
+  - `--verbose` est obligatoire avec `--output-format stream-json` en mode `-p`, et `--include-partial-messages` fournit le texte token par token (`stream_event` > `content_block_delta`).
+- Le CLI réémet un `system/init` à chaque message reçu, pas seulement au lancement : il ne sert pas de signal « session prête ».
+- Une réponse en échec arrive comme une ligne `result` avec `is_error: true` et `subtype: success` : seul `is_error` est fiable.
 - `--bare` est exclu : il ne lit jamais l'OAuth ni le trousseau, donc il est incompatible avec l'abonnement Max.
 - Jamais de `--dangerously-skip-permissions` ni de mode `bypassPermissions`.
 
 **Lancement du sous-processus**
 - `Process` avec un `executableURL` absolu et un tableau d'arguments. Jamais via un shell.
-- Environnement construit explicitement avec le strict nécessaire, jamais hérité tel quel. `ANTHROPIC_API_KEY` n'est jamais transmis : sinon la session bascule sur la facturation API.
+- Environnement construit explicitement avec le strict nécessaire, jamais hérité tel quel : `HOME`, `USER`, `PATH`, `LANG`. `USER` est indispensable : sans lui, le CLI ne trouve pas les identifiants du trousseau et répond « Not logged in ». `ANTHROPIC_API_KEY` n'est jamais transmis : sinon la session bascule sur la facturation API.
 - Le contenu de la conversation passe uniquement par stdin, jamais en argument (visible avec `ps`).
 - Le chemin du binaire résolu via le PATH est vérifié (chemin absolu, fichier exécutable) et affiché dans les réglages.
 - Le process suit le cycle de vie de l'app : terminé à la fin du call et à la fermeture de l'app. Il ne doit pas survivre à un crash (stdin se ferme à la mort du parent : vérifier que `claude` se termine bien dans ce cas).
