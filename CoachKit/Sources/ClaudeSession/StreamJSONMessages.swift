@@ -33,7 +33,8 @@ struct StreamInterruptRequest: Encodable, Equatable {
 struct StreamOutputLine: Decodable {
     struct Event: Decodable {
         struct Delta: Decodable {
-            let type: String
+            /// Absent du `delta` d'un `message_delta`, qui porte `stop_reason` à la place.
+            let type: String?
             let text: String?
         }
 
