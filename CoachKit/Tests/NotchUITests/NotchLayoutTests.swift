@@ -82,4 +82,36 @@ struct NotchLayoutTests {
         #expect(placement.style == .pill)
         #expect(placement.frame == CGRect(x: 656, y: 946, width: 200, height: 32))
     }
+
+    @Test func expandedNotchPanelCoversTheNotchAndHostsTextBelow() {
+        let placement = layout.expandedPlacement(for: builtInDisplay)
+
+        #expect(placement.style == .notch)
+        #expect(placement.frame == CGRect(x: 536, y: 870, width: 440, height: 112))
+        #expect(placement.contentTopInset == 32)
+    }
+
+    @Test func expandedNotchPanelIsNeverNarrowerThanTheCollapsedOne() {
+        let layout = NotchLayout(expandedContentSize: CGSize(width: 100, height: 60))
+
+        let placement = layout.expandedPlacement(for: builtInDisplay)
+
+        #expect(placement.frame == CGRect(x: 651.5, y: 890, width: 209, height: 92))
+    }
+
+    @Test func expandedPillHasNoNotchInset() {
+        let placement = layout.expandedPlacement(for: externalDisplay)
+
+        #expect(placement.style == .pill)
+        #expect(placement.frame == CGRect(x: 3012, y: 1356, width: 440, height: 80))
+        #expect(placement.contentTopInset == 0)
+    }
+
+    @Test(arguments: InconsistentNotch.allCases)
+    func inconsistentNotchExpandsAsPill(_ notch: InconsistentNotch) {
+        let placement = layout.expandedPlacement(for: notch.metrics)
+
+        #expect(placement.style == .pill)
+        #expect(placement.frame == CGRect(x: 536, y: 898, width: 440, height: 80))
+    }
 }
