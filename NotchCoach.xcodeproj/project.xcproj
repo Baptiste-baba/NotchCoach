@@ -53,7 +53,7 @@
       ],
       "package-product-members": [
         {
-          "product-name": "NotchUI",
+          "product-name": "CoachKit",
           "build-phase": { "build-phase": "frameworks" },
         },
       ],

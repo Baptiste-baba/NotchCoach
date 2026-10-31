@@ -141,7 +141,7 @@ NotchCoach/
 ├── NotchCoach.xcodeproj  # format Xcode 27 (project.xcproj), ne contient aucun réglage de build
 ├── Config/               # xcconfig (Base, Debug, Release) et entitlements : seule source des réglages de build
 ├── App/                  # cible app, mince : lifecycle, menu bar, injection des dépendances
-├── CoachKit/             # package Swift local, toute la logique
+├── CoachKit/             # package Swift local, toute la logique ; un seul produit `CoachKit` qui regroupe tous les modules
 │   ├── Sources/
 │   │   ├── AudioCapture/
 │   │   ├── Transcription/
