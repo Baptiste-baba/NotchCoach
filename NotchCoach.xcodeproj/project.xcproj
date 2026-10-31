@@ -10,6 +10,12 @@
       "Base",
     ],
   },
+  "packages": [
+    {
+      "kind": "local",
+      "path": "CoachKit",
+    },
+  ],
   "files": [
     {
       "kind": "group",
@@ -44,6 +50,12 @@
         "compile-sources",
         "frameworks",
         "resources",
+      ],
+      "package-product-members": [
+        {
+          "product-name": "NotchUI",
+          "build-phase": { "build-phase": "frameworks" },
+        },
       ],
     },
   ],

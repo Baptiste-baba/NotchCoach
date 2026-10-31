@@ -137,7 +137,8 @@ Ce que dit le prospect arrive directement dans le prompt : c'est une entrée non
 
 ```
 NotchCoach/
-├── NotchCoach.xcodeproj
+├── NotchCoach.xcodeproj  # format Xcode 27 (project.xcproj), ne contient aucun réglage de build
+├── Config/               # xcconfig (Base, Debug, Release) et entitlements : seule source des réglages de build
 ├── App/                  # cible app, mince : lifecycle, menu bar, injection des dépendances
 ├── CoachKit/             # package Swift local, toute la logique
 │   ├── Sources/
