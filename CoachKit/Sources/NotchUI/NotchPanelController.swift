@@ -37,6 +37,11 @@ public final class NotchPanelController {
         }
     }
 
+    /// Change le contenu affiché : `.empty` replie le panel, `.text` le déplie sous la notch.
+    public func display(_ content: NotchContent) {
+        fatalError("TODO")
+    }
+
     /// Masque le panel.
     public func hide() {
         isShown = false

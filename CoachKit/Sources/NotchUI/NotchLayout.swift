@@ -23,6 +23,11 @@ struct NotchLayout {
         return NotchPlacement(frame: frame, style: .pill)
     }
 
+    /// Cadre du panel déplié : il descend sous la notch (ou sous la pilule) pour afficher du texte.
+    func expandedPlacement(for screen: ScreenMetrics) -> NotchPlacement {
+        fatalError("TODO")
+    }
+
     /// Cadre de la notch matérielle, ou `nil` si l'écran n'en a pas ou si ses mesures sont incohérentes
     /// (une seule zone de barre de menus, hauteur nulle, zones qui se chevauchent) : on retombe alors sur la pilule.
     private func notchFrame(on screen: ScreenMetrics) -> CGRect? {

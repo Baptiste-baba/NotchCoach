@@ -9,3 +9,15 @@ struct ClaudeLaunchConfiguration: Equatable, Sendable {
     /// Répertoire de travail dédié et vide.
     var workingDirectory: URL
 }
+
+extension ClaudeLaunchConfiguration {
+    /// Construit la configuration retenue. Seules les variables nécessaires sont reprises de `parentEnvironment`.
+    init(
+        executableURL: URL,
+        options: ClaudeSessionOptions,
+        workingDirectory: URL,
+        parentEnvironment: [String: String]
+    ) {
+        fatalError("TODO")
+    }
+}
