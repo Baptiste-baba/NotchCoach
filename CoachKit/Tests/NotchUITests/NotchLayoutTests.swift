@@ -1,2 +1,85 @@
+import CoreGraphics
 import Testing
 @testable import NotchUI
+
+/// Mesures relevées sur l'écran intégré d'un MacBook Pro 14" : notch de 185 × 32 pt, de x = 663,5 à 848,5.
+private let builtInDisplay = ScreenMetrics(
+    frame: CGRect(x: 0, y: 0, width: 1512, height: 982),
+    safeAreaTopInset: 32,
+    auxiliaryTopLeftArea: CGRect(x: 0, y: 950, width: 663.5, height: 32),
+    auxiliaryTopRightArea: CGRect(x: 848.5, y: 950, width: 663.5, height: 32)
+)
+
+/// Mesures relevées sur un écran externe sans notch, placé à droite de l'écran intégré.
+private let externalDisplay = ScreenMetrics(
+    frame: CGRect(x: 1512, y: 0, width: 3440, height: 1440),
+    safeAreaTopInset: 0,
+    auxiliaryTopLeftArea: nil,
+    auxiliaryTopRightArea: nil
+)
+
+/// Variantes de l'écran intégré dont les mesures de notch sont incohérentes.
+enum InconsistentNotch: CaseIterable, Sendable {
+    case leftAreaOnly
+    case rightAreaOnly
+    case zeroHeight
+    case overlappingAreas
+    case touchingAreas
+
+    var metrics: ScreenMetrics {
+        var metrics = builtInDisplay
+        switch self {
+        case .leftAreaOnly:
+            metrics.auxiliaryTopRightArea = nil
+        case .rightAreaOnly:
+            metrics.auxiliaryTopLeftArea = nil
+        case .zeroHeight:
+            metrics.safeAreaTopInset = 0
+        case .overlappingAreas:
+            metrics.auxiliaryTopRightArea = CGRect(x: 600, y: 950, width: 912, height: 32)
+        case .touchingAreas:
+            metrics.auxiliaryTopRightArea = CGRect(x: 663.5, y: 950, width: 848.5, height: 32)
+        }
+        return metrics
+    }
+}
+
+struct NotchLayoutTests {
+    let layout = NotchLayout()
+
+    @Test func notchScreenExtendsNotchOnBothSides() {
+        let placement = layout.placement(for: builtInDisplay)
+
+        #expect(placement.style == .notch)
+        #expect(placement.frame == CGRect(x: 651.5, y: 950, width: 209, height: 32))
+    }
+
+    @Test func notchPanelMatchesNotchWithoutExtension() {
+        let placement = NotchLayout(notchSideExtension: 0).placement(for: builtInDisplay)
+
+        #expect(placement.frame == CGRect(x: 663.5, y: 950, width: 185, height: 32))
+    }
+
+    @Test func screenWithoutNotchGetsCenteredPill() {
+        let placement = layout.placement(for: externalDisplay)
+
+        #expect(placement.style == .pill)
+        #expect(placement.frame == CGRect(x: 3132, y: 1404, width: 200, height: 32))
+    }
+
+    @Test func pillUsesCustomSizeAndMargin() {
+        let layout = NotchLayout(pillSize: CGSize(width: 100, height: 20), pillTopMargin: 10)
+
+        let placement = layout.placement(for: externalDisplay)
+
+        #expect(placement.frame == CGRect(x: 3182, y: 1410, width: 100, height: 20))
+    }
+
+    @Test(arguments: InconsistentNotch.allCases)
+    func inconsistentNotchFallsBackToPill(_ notch: InconsistentNotch) {
+        let placement = layout.placement(for: notch.metrics)
+
+        #expect(placement.style == .pill)
+        #expect(placement.frame == CGRect(x: 656, y: 946, width: 200, height: 32))
+    }
+}
