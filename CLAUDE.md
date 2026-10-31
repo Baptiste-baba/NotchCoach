@@ -90,7 +90,8 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - `NSPanel` avec `.nonactivatingPanel` : il ne prend jamais le focus à l'app de visio.
 - Niveau au-dessus de la barre de menus, `collectionBehavior` avec `.canJoinAllSpaces` et `.fullScreenAuxiliary`.
 - **`sharingType = .none` obligatoire** : la fenêtre doit rester invisible pendant un partage d'écran. C'est un point non négociable, à couvrir par un test manuel dans la checklist de release.
-- Position calculée depuis `NSScreen.safeAreaInsets` et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Sans notch (écran externe), fallback en pilule centrée en haut de l'écran.
+- Le panel est toujours sur l'écran principal (`NSScreen.screens.first`, celui choisi comme principal dans Réglages > Moniteurs, et non `NSScreen.main` qui suit le focus) et le suit quand la configuration des écrans change.
+- Position calculée depuis `NSScreen.safeAreaInsets` et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Si l'écran principal a une notch, le panel s'intègre avec : même hauteur, il la prolonge de chaque côté. Sans notch (écran externe), fallback en pilule centrée en haut de l'écran.
 - État replié : indicateur discret (écoute active, session Claude prête ou non). État déplié : suggestion en cours. Animation sobre, pas de clignotement.
 - L'app vit dans la barre de menus (`LSUIElement = YES`), pas d'icône dans le Dock.
 
