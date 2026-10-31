@@ -60,7 +60,8 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Protocole `TranscriptionEngine` : prend un flux audio, émet des `TranscriptSegment`.
 - `TranscriptSegment { speaker, text, isFinal, start, end }`
 - Une instance du moteur par canal.
-- Implémentation : `ParakeetEngine` (FluidAudio).
+- Implémentation : `ParakeetEngine` (FluidAudio). Silero VAD repère la fin de chaque prise de parole, puis Parakeet Ultra (`AsrModelVersion.ultra`, 25 langues européennes) transcrit le segment d'un coup sur le Neural Engine : les segments sont émis finaux, par phrase entière. Parakeet EOU, le modèle de streaming de FluidAudio, est exclu car il ne gère que l'anglais.
+- Les modèles (environ 630 Mo) sont téléchargés au premier lancement depuis Hugging Face dans `~/Library/Application Support/FluidAudio/Models/`, chargés une seule fois et partagés par les moteurs des deux canaux.
 
 **Conversation**
 - `TranscriptBuffer` : accumule les segments finaux et fournit, à chaque déclenchement, uniquement les segments nouveaux depuis le dernier message envoyé, formatés pour le prompt. Un segment n'est jamais envoyé deux fois : la session `claude` restant la même pendant tout le call, son historique sert de mémoire de la conversation (environ 15 000 tokens par heure de call, sans doublons).
@@ -131,7 +132,8 @@ Ce que dit le prospect arrive directement dans le prompt : c'est une entrée non
 - Le process suit le cycle de vie de l'app : terminé à la fin du call et à la fermeture de l'app. Il ne doit pas survivre à un crash (stdin se ferme à la mort du parent : vérifier que `claude` se termine bien dans ce cas).
 
 **Dépendances**
-- FluidAudio est épinglée à une version exacte. Vérifier d'où viennent les modèles qu'elle télécharge et figer leur version.
+- FluidAudio est épinglée à la version exacte 0.18.0 (commit `e152879`), avec `traits: []` : transcription et détection de voix seulement, sans synthèse vocale ni diarisation. SwiftPM télécharge quand même le binaire précompilé `NemoTextProcessing` à la résolution, mais il n'est pas lié dans l'app.
+- Les modèles viennent de `huggingface.co` (dépôts `FluidInference/…`), sur la branche `main` par défaut, qui peut changer : leur révision est figée sur un commit précis via `ModelRegistry.revisionOverrides`.
 
 ## Permissions et distribution
 
@@ -155,7 +157,7 @@ NotchCoach/
 │   │   ├── Prompting/
 │   │   └── NotchUI/
 │   └── Tests/
-└── Fixtures/             # fichiers audio de calls de test
+└── Fixtures/             # fichiers audio de calls de test, et le script qui génère le call synthétique
 ```
 
 La cible App ne contient pas de logique métier. Si un fichier de `App/` dépasse ~100 lignes, c'est probablement qu'il manque une abstraction dans `CoachKit`.
@@ -163,14 +165,17 @@ La cible App ne contient pas de logique métier. Si un fichier de `App/` dépass
 ## Commandes
 
 ```bash
-# Build
-xcodebuild -project NotchCoach.xcodeproj -scheme NotchCoach -configuration Debug build
+# Build (dans ./build, ignoré par git)
+xcodebuild -project NotchCoach.xcodeproj -scheme NotchCoach -configuration Debug -derivedDataPath build build
 
 # Tests du package
 cd CoachKit && swift test
 
+# Call synthétique pour le replay (voix françaises de macOS)
+swift Fixtures/generate-call-objection-prix.swift
+
 # Mode replay : rejoue un fichier audio à la place d'un vrai call
-./build/Debug/NotchCoach.app/Contents/MacOS/NotchCoach --replay Fixtures/call-objection-prix.wav
+./build/Build/Products/Debug/NotchCoach.app/Contents/MacOS/NotchCoach --replay Fixtures/call-objection-prix.wav
 ```
 
 Le mode replay est une fonctionnalité de premier ordre, pas un bonus : c'est le seul moyen de tester le pipeline complet et de mesurer la latence sans être réellement au téléphone. Il remplace la capture audio par la lecture d'un fichier (stéréo : canal gauche = moi, canal droit = prospect) à vitesse réelle.
