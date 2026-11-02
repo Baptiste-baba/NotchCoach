@@ -22,7 +22,7 @@ let package = Package(
             name: "Transcription",
             dependencies: ["AudioCapture", .product(name: "FluidAudio", package: "FluidAudio")]
         ),
-        .target(name: "Conversation", dependencies: ["AudioCapture", "Transcription"]),
+        .target(name: "Conversation", dependencies: ["AudioCapture", "Transcription", "ClaudeSession"]),
         .testTarget(name: "NotchUITests", dependencies: ["NotchUI"]),
         .testTarget(name: "ClaudeSessionTests", dependencies: ["ClaudeSession"]),
         .testTarget(name: "AudioCaptureTests", dependencies: ["AudioCapture"]),
@@ -30,6 +30,9 @@ let package = Package(
             name: "TranscriptionTests",
             dependencies: ["Transcription", .product(name: "FluidAudio", package: "FluidAudio")]
         ),
-        .testTarget(name: "ConversationTests", dependencies: ["Conversation", "AudioCapture", "Transcription"]),
+        .testTarget(
+            name: "ConversationTests",
+            dependencies: ["Conversation", "AudioCapture", "Transcription", "ClaudeSession"]
+        ),
     ]
 )
