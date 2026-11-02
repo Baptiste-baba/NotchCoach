@@ -8,6 +8,8 @@ import os
 public actor ParakeetEngine: TranscriptionEngine {
     private let speaker: Speaker
     private let models: ParakeetModels
+    /// Vrai entre un morceau coupé par la durée maximale et la fin de la prise de parole.
+    private var isInCutSpeech = false
 
     public init(speaker: Speaker, models: ParakeetModels) {
         self.speaker = speaker
@@ -51,31 +53,34 @@ public actor ParakeetEngine: TranscriptionEngine {
         with asr: AsrManager,
         to output: AsyncStream<TranscriptSegment>.Continuation
     ) async {
+        var text = ""
         do {
-            if let segment = try await transcribe(utterance, with: asr) {
-                output.yield(segment)
-            }
+            text = try await transcribe(utterance, with: asr)
         } catch {
             logger.error("Transcription \(String(describing: self.speaker), privacy: .public) : prise de parole ignorée, \(error.localizedDescription, privacy: .public)")
         }
-    }
-
-    /// Transcrit une prise de parole, ou renvoie `nil` si elle ne contient aucun mot.
-    private func transcribe(_ utterance: Utterance, with asr: AsrManager) async throws -> TranscriptSegment? {
-        let signpostState = signposter.beginInterval("Segment STT")
-        defer { signposter.endInterval("Segment STT", signpostState) }
-        // Chaque prise de parole est indépendante : état de décodage neuf.
-        var decoderState = TdtDecoderState.make(decoderLayers: await asr.decoderLayerCount)
-        let result = try await asr.transcribe(utterance.samples, decoderState: &decoderState, language: .french)
-        let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !text.isEmpty else { return nil }
+        let closesCutSpeech = isInCutSpeech && utterance.isComplete
+        isInCutSpeech = !utterance.isComplete
+        // Sans aucun mot, ou en échec, rien n'est émis, sauf pour clore une prise de parole coupée à 30 s : un segment
+        // final vide dit alors au déclencheur que la personne a fini de parler.
+        guard !text.isEmpty || closesCutSpeech else { return }
         logger.debug("Segment \(String(describing: self.speaker), privacy: .public) : \(text, privacy: .private)")
-        return TranscriptSegment(
+        output.yield(TranscriptSegment(
             speaker: speaker,
             text: text,
             isFinal: utterance.isComplete,
             start: utterance.start,
             end: utterance.end
-        )
+        ))
+    }
+
+    /// Texte d'une prise de parole, vide si elle ne contient aucun mot.
+    private func transcribe(_ utterance: Utterance, with asr: AsrManager) async throws -> String {
+        let signpostState = signposter.beginInterval("Segment STT")
+        defer { signposter.endInterval("Segment STT", signpostState) }
+        // Chaque prise de parole est indépendante : état de décodage neuf.
+        var decoderState = TdtDecoderState.make(decoderLayers: await asr.decoderLayerCount)
+        let result = try await asr.transcribe(utterance.samples, decoderState: &decoderState, language: .french)
+        return result.text.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }

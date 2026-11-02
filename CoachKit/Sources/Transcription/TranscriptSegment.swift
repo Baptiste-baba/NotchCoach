@@ -4,6 +4,7 @@ import Foundation
 /// Segment de transcription d'une prise de parole.
 public struct TranscriptSegment: Equatable, Sendable {
     public var speaker: Speaker
+    /// Vide seulement pour un segment final qui clôt, sans aucun mot, une prise de parole coupée en morceaux.
     public var text: String
     /// `false` quand la prise de parole continue après ce segment : chez `ParakeetEngine`, un morceau coupé par la
     /// durée maximale d'une prise de parole. Seul un segment final peut déclencher une suggestion.
