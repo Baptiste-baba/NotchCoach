@@ -4,4 +4,6 @@ import Foundation
 struct LaunchOptions: Equatable {
     /// Fichier à rejouer à la place d'un vrai call ; `nil` hors mode replay.
     var replayFile: URL?
+
+    init(arguments: [String]) {}
 }
