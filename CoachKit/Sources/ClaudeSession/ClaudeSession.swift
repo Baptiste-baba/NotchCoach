@@ -13,7 +13,7 @@ public actor ClaudeSession: LLMSession {
     private let eventsContinuation: AsyncStream<LLMEvent>.Continuation
     private let statesContinuation: AsyncStream<SessionState>.Continuation
     private let options: ClaudeSessionOptions
-    private let locator = ClaudeBinaryLocator()
+    private let locateBinary: @Sendable (URL?) async throws -> URL
     private let encoder = StreamJSONEncoder()
     private let parser = StreamJSONParser()
     private let backoff: RestartBackoff
@@ -45,12 +45,18 @@ public actor ClaudeSession: LLMSession {
         self.init(options: options, backoff: RestartBackoff())
     }
 
-    /// Délais de redémarrage réglables : utilisé par les tests pour ne pas attendre plusieurs secondes.
-    init(options: ClaudeSessionOptions, backoff: RestartBackoff) {
+    /// Pour les tests : délais de redémarrage réglables, pour ne pas attendre plusieurs secondes, et recherche
+    /// du binaire remplaçable, pour maîtriser le moment où un lancement reprend.
+    init(
+        options: ClaudeSessionOptions,
+        backoff: RestartBackoff,
+        locateBinary: @escaping @Sendable (URL?) async throws -> URL = { try await ClaudeBinaryLocator().locate(override: $0) }
+    ) {
         (events, eventsContinuation) = AsyncStream.makeStream()
         (states, statesContinuation) = AsyncStream.makeStream()
         self.options = options
         self.backoff = backoff
+        self.locateBinary = locateBinary
     }
 
     public func start() async throws {
@@ -62,9 +68,15 @@ public actor ClaudeSession: LLMSession {
         guard !isActive else { return }
         isActive = true
         restartAttempt = 0
-        let task = Task { try await launch() }
+        let launchGeneration = generation
+        let task = Task { try await launch(generation: launchGeneration) }
         startTask = task
-        defer { startTask = nil }
+        defer {
+            // `stop()` puis un nouveau `start()` ont pu remplacer ce lancement : on n'oublie que le sien.
+            if startTask == task {
+                startTask = nil
+            }
+        }
         do {
             try await task.value
         } catch {
@@ -103,6 +115,8 @@ public actor ClaudeSession: LLMSession {
     public func stop() async {
         isActive = false
         generation += 1
+        // Un lancement en cours est abandonné : un `start()` qui suit en démarre un nouveau au lieu de l'attendre.
+        startTask = nil
         process?.terminate()
         process = nil
         endPendingRequests(failureMessage: nil)
@@ -110,20 +124,21 @@ public actor ClaudeSession: LLMSession {
         statesContinuation.yield(.stopped)
     }
 
-    private func launch() async throws {
+    /// Lance le process pour la génération en cours au moment de l'appel. Si elle a changé pendant la recherche
+    /// du binaire (`stop()`, ou un autre lancement arrivé avant), le process est aussitôt arrêté.
+    private func launch(generation launchGeneration: Int) async throws {
         // Une app lancée hors du terminal peut ne pas avoir ces variables ; le CLI en a besoin.
         var environment = ProcessInfo.processInfo.environment
         environment["USER"] = environment["USER"] ?? NSUserName()
         environment["HOME"] = environment["HOME"] ?? NSHomeDirectory()
         let configuration = ClaudeLaunchConfiguration(
-            executableURL: try await locator.locate(override: options.binaryPathOverride),
+            executableURL: try await locateBinary(options.binaryPathOverride),
             options: options,
             workingDirectory: try Self.makeWorkingDirectory(),
             parentEnvironment: environment
         )
         let process = try ClaudeProcess(configuration: configuration)
-        guard isActive else {
-            // `stop()` appelé pendant le lancement.
+        guard isActive, generation == launchGeneration else {
             process.terminate()
             return
         }
@@ -161,7 +176,7 @@ public actor ClaudeSession: LLMSession {
             try? await Task.sleep(for: backoff.delay(forAttempt: restartAttempt))
             guard isActive, generation == restartGeneration else { return }
             do {
-                try await launch()
+                try await launch(generation: restartGeneration)
                 return
             } catch {
                 logger.error("Redémarrage de claude impossible : \(error.localizedDescription, privacy: .public)")

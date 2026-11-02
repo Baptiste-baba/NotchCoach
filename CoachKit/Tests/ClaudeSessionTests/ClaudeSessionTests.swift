@@ -132,6 +132,38 @@ struct ClaudeSessionTests {
         await session.stop()
     }
 
+    @Test func stopThenStartDuringALaunchEndsWithARunningSession() async throws {
+        let binary = try FakeClaude.install()
+        let gate = Gate()
+        let launches = CallCounter()
+        // Le premier lancement reste bloqué dans la recherche du binaire jusqu'à l'ouverture de la barrière.
+        let session = ClaudeSession(
+            options: ClaudeSessionOptions(systemPrompt: "test"),
+            backoff: fastBackoff,
+            locateBinary: { _ in
+                if await launches.next() == 1 {
+                    await gate.wait()
+                }
+                return binary
+            }
+        )
+        let (events, reader) = record(session.events)
+        defer { reader.cancel() }
+
+        let first = Task { try await session.start() }
+        #expect(await eventually { await launches.count == 1 })
+        await session.stop()
+        let second = Task { try await session.start() }
+        try await Task.sleep(for: .milliseconds(100))
+        await gate.open()
+        try await first.value
+        try await second.value
+
+        await session.send(LLMRequest(id: 1, prompt: "Bonjour"))
+        #expect(await eventually { await events.values.last == .finished(requestID: 1) })
+        await session.stop()
+    }
+
     @Test func nonExecutableOverrideFailsToStart() async throws {
         let session = ClaudeSession(options: ClaudeSessionOptions(
             systemPrompt: "test",

@@ -32,6 +32,33 @@ func eventually(timeout: Duration = .seconds(5), _ condition: () async -> Bool) 
     return await condition()
 }
 
+/// Barrière que le test ouvre quand il veut : tout ce qui l'attend reprend à ce moment-là.
+actor Gate {
+    private var isOpen = false
+    private var waiters: [CheckedContinuation<Void, Never>] = []
+
+    func wait() async {
+        guard !isOpen else { return }
+        await withCheckedContinuation { waiters.append($0) }
+    }
+
+    func open() {
+        isOpen = true
+        waiters.forEach { $0.resume() }
+        waiters = []
+    }
+}
+
+/// Compte les appels, pour savoir combien de lancements ont commencé.
+actor CallCounter {
+    private(set) var count = 0
+
+    func next() -> Int {
+        count += 1
+        return count
+    }
+}
+
 /// Faux CLI `claude` : un script shell qui imite le protocole `stream-json` selon le contenu du prompt.
 /// - `MEURS` : le process s'arrête.
 /// - `ERREUR` : ligne `result` en échec, comme « Not logged in ».
