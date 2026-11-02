@@ -9,9 +9,6 @@ private let signposter = OSSignposter(subsystem: "io.github.baptiste-baba.NotchC
 /// Transcription d'un canal avec FluidAudio : Silero VAD repère la fin de chaque prise de parole, puis
 /// Parakeet Ultra transcrit le segment d'un coup sur le Neural Engine.
 public actor ParakeetEngine: TranscriptionEngine {
-    /// Taille de bloc traitée par le VAD de FluidAudio : 4096 échantillons, soit 256 ms.
-    private static let vadBlockSize = VadManager.chunkSize
-
     private let speaker: Speaker
     private let models: ParakeetModels
 
@@ -37,46 +34,17 @@ public actor ParakeetEngine: TranscriptionEngine {
         } catch {
             return
         }
-        var vadState = await models.vad.makeStreamState()
-        var accumulator = UtteranceAccumulator()
-        // Les morceaux reçus sont regroupés en blocs de la taille attendue par le VAD.
-        var pending: [Float] = []
-        var pendingStart: TimeInterval = 0
+        let vad = models.vad
+        var segmenter = SpeechSegmenter(speaker: speaker) { block, state in
+            try await vad.processStreamingChunk(block, state: state)
+        }
         for await chunk in audio {
-            if pending.isEmpty {
-                pendingStart = chunk.startTime
-            }
-            pending += chunk.samples
-            while pending.count >= Self.vadBlockSize {
-                let block = AudioChunk(samples: Array(pending.prefix(Self.vadBlockSize)), startTime: pendingStart)
-                pending.removeFirst(Self.vadBlockSize)
-                pendingStart += Double(Self.vadBlockSize) / Double(AudioChunk.sampleRate)
-
-                var boundary: SpeechBoundary?
-                do {
-                    let result = try await models.vad.processStreamingChunk(block.samples, state: vadState)
-                    vadState = result.state
-                    boundary = result.event.map { event in
-                        switch event.kind {
-                        case .speechStart: .start(sampleIndex: event.sampleIndex)
-                        case .speechEnd: .end(sampleIndex: event.sampleIndex)
-                        }
-                    }
-                } catch {
-                    // Le bloc reste dans l'accumulateur pour garder les index alignés, sans limite repérée.
-                    logger.error("VAD \(String(describing: self.speaker), privacy: .public) : bloc ignoré, \(error.localizedDescription, privacy: .public)")
-                }
-                if let utterance = accumulator.append(block, boundary: boundary) {
-                    await emit(utterance, with: models.asr, to: output)
-                }
+            for utterance in await segmenter.append(chunk) {
+                await emit(utterance, with: models.asr, to: output)
             }
         }
-        // Fin du flux (fin du replay, audio coupé) : la prise de parole en cours est transcrite telle quelle.
         guard !Task.isCancelled else { return }
-        if !pending.isEmpty {
-            _ = accumulator.append(AudioChunk(samples: pending, startTime: pendingStart), boundary: nil)
-        }
-        if let utterance = accumulator.finish() {
+        for utterance in segmenter.finish() {
             await emit(utterance, with: models.asr, to: output)
         }
     }
