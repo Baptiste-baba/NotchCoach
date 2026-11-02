@@ -12,4 +12,13 @@ struct LatencyMeasurement: Equatable, Sendable {
     let requestSent: TimeInterval
     /// Premier mot de la suggestion affiché.
     let firstWordShown: TimeInterval
+
+    /// Attente du silence par le VAD puis transcription : de la fin de la phrase à son arrivée.
+    var endOfTurnDetection: TimeInterval { segmentReceived - speechEnd }
+    /// Déclencheur et envoi de la requête.
+    var dispatch: TimeInterval { requestSent - segmentReceived }
+    /// Claude : de l'envoi de la requête au premier mot affiché.
+    var firstWord: TimeInterval { firstWordShown - requestSent }
+    /// De la fin de la phrase du prospect au premier mot affiché : le budget de 3 s du CLAUDE.md.
+    var total: TimeInterval { firstWordShown - speechEnd }
 }
