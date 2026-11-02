@@ -25,6 +25,9 @@ let package = Package(
         .testTarget(name: "NotchUITests", dependencies: ["NotchUI"]),
         .testTarget(name: "ClaudeSessionTests", dependencies: ["ClaudeSession"]),
         .testTarget(name: "AudioCaptureTests", dependencies: ["AudioCapture"]),
-        .testTarget(name: "TranscriptionTests", dependencies: ["Transcription"]),
+        .testTarget(
+            name: "TranscriptionTests",
+            dependencies: ["Transcription", .product(name: "FluidAudio", package: "FluidAudio")]
+        ),
     ]
 )
