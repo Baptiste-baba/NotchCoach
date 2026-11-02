@@ -77,7 +77,10 @@ public actor ClaudeSession: LLMSession {
         do {
             try await task.value
         } catch {
-            isActive = false
+            // `stop()` puis un nouveau `start()` ont pu remplacer ce lancement : leur état n'est pas le nôtre.
+            if generation == launchGeneration {
+                isActive = false
+            }
             throw error
         }
     }

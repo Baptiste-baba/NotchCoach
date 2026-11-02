@@ -164,6 +164,43 @@ struct ClaudeSessionTests {
         await session.stop()
     }
 
+    @Test func failedOldLaunchDoesNotStopTheNewSession() async throws {
+        struct LookupFailure: Error {}
+        let binary = try FakeClaude.install()
+        let firstGate = Gate()
+        let secondGate = Gate()
+        let launches = CallCounter()
+        // Le premier lancement échoue après `stop()`, pendant que le second cherche encore le binaire.
+        let session = ClaudeSession(
+            options: ClaudeSessionOptions(systemPrompt: "test"),
+            backoff: fastBackoff,
+            locateBinary: { _ in
+                if await launches.next() == 1 {
+                    await firstGate.wait()
+                    throw LookupFailure()
+                }
+                await secondGate.wait()
+                return binary
+            }
+        )
+        let (events, reader) = record(session.events)
+        defer { reader.cancel() }
+
+        let first = Task { try await session.start() }
+        #expect(await eventually { await launches.count == 1 })
+        await session.stop()
+        let second = Task { try await session.start() }
+        #expect(await eventually { await launches.count == 2 })
+        await firstGate.open()
+        await #expect(throws: LookupFailure.self) { try await first.value }
+        await secondGate.open()
+        try await second.value
+
+        await session.send(LLMRequest(id: 1, prompt: "Bonjour"))
+        #expect(await eventually { await events.values.last == .finished(requestID: 1) })
+        await session.stop()
+    }
+
     @Test func nonExecutableOverrideFailsToStart() async throws {
         let session = ClaudeSession(options: ClaudeSessionOptions(
             systemPrompt: "test",
