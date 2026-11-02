@@ -55,7 +55,10 @@ struct SpeechSegmenter {
                     }
                 }
             } catch {
-                // Le bloc reste dans l'accumulateur pour garder les index alignés, sans limite repérée.
+                // FluidAudio n'avance son compteur d'échantillons que sur un bloc traité : on l'avance à sa place,
+                // sinon toutes les limites suivantes arriveraient un bloc trop tôt. Le bloc reste dans l'accumulateur,
+                // sans limite repérée, pour que l'audio garde sa continuité.
+                vadState.processedSamples += block.samples.count
                 let speaker = speaker
                 logger.error("VAD \(String(describing: speaker), privacy: .public) : bloc ignoré, \(error.localizedDescription, privacy: .public)")
             }

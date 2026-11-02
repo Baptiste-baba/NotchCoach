@@ -53,6 +53,18 @@ struct SpeechSegmenterTests {
         #expect(utterances.first?.end == 12.0 / 16_000)
     }
 
+    @Test func failedVadBlockDoesNotShiftLaterBoundaries() async {
+        var segmenter = segmenter()
+        var utterances: [Utterance] = []
+
+        for (index, value) in [Float](arrayLiteral: 0, -1, 1, 1, 0).enumerated() {
+            utterances += await segmenter.append(chunk(value, count: 4, at: index * 4))
+        }
+
+        // Exactement la parole : ni le bloc en échec, ni de parole coupée.
+        #expect(utterances.map(\.samples) == [Array(repeating: 1, count: 8)])
+    }
+
     @Test func finishTranscribesSpeechCutByTheEndOfTheAudio() async {
         var segmenter = segmenter()
 
