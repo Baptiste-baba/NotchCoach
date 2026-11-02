@@ -1,4 +1,7 @@
 import FluidAudio
+import os
+
+private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "Transcription")
 
 /// Modèles Parakeet Ultra et Silero VAD : téléchargés une fois depuis Hugging Face à une révision figée,
 /// chargés une seule fois et partagés par les moteurs des deux canaux.
@@ -13,19 +16,30 @@ public actor ParakeetModels {
     }
 
     /// Télécharge les modèles s'ils ne sont pas sur le disque, puis les charge. Les appels suivants réutilisent
-    /// les modèles déjà chargés.
-    public func prepare() async throws {
+    /// les modèles déjà chargés. Après un échec, un nouvel appel réessaie.
+    public func prepare() async throws(TranscriptionError) {
         _ = try await loaded()
     }
 
     /// Modèles chargés, pour les moteurs. Prépare les modèles s'ils ne le sont pas encore.
-    func loaded() async throws -> LoadedModels {
+    func loaded() async throws(TranscriptionError) -> LoadedModels {
+        let task: Task<LoadedModels, any Error>
         if let preparation {
-            return try await preparation.value
+            task = preparation
+        } else {
+            task = Task { try await load() }
+            preparation = task
         }
-        let task = Task { try await load() }
-        preparation = task
-        return try await task.value
+        do {
+            return try await task.value
+        } catch {
+            // Les appels concurrents attendaient la même tâche : un seul l'oublie, le suivant relancera.
+            if preparation == task {
+                preparation = nil
+            }
+            logger.error("Préparation des modèles impossible : \(error.localizedDescription, privacy: .public)")
+            throw .modelsUnavailable(reason: error.localizedDescription)
+        }
     }
 
     private func load() async throws -> LoadedModels {
@@ -36,15 +50,22 @@ public actor ParakeetModels {
         // Le VAD pèse quelques Mo : seul le téléchargement de Parakeet est suivi.
         let vad = try await VadManager()
         let asrModels = try await AsrModels.downloadAndLoad(version: .ultra) { progress in
-            switch progress.phase {
-            case .listing, .downloading:
-                states.yield(.downloading(fraction: progress.fractionCompleted))
-            case .compiling:
-                states.yield(.loading)
-            }
+            states.yield(Self.loadState(for: progress))
         }
         states.yield(.ready)
         return LoadedModels(asr: AsrManager(models: asrModels), vad: vad)
+    }
+
+    /// Part de l'avancement que FluidAudio réserve au téléchargement d'un dépôt de modèles, la compilation
+    /// occupant le reste (`ProgressReporter.downloadPhaseWeight` dans FluidAudio 0.18.0).
+    static let downloadPhaseWeight = 0.5
+
+    /// Traduit l'avancement de FluidAudio pour l'UI : le pourcentage ne couvre que le téléchargement, et des
+    /// modèles déjà sur le disque (téléchargement terminé d'emblée) s'affichent comme un chargement.
+    static func loadState(for progress: DownloadProgress) -> ModelLoadState {
+        guard case .downloading = progress.phase else { return .loading }
+        let fraction = min(max(progress.fractionCompleted / downloadPhaseWeight, 0), 1)
+        return fraction < 1 ? .downloading(fraction: fraction) : .loading
     }
 }
 

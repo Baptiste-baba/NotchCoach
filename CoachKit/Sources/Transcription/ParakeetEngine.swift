@@ -20,6 +20,8 @@ public actor ParakeetEngine: TranscriptionEngine {
         self.models = models
     }
 
+    /// Une erreur sur un bloc ou une prise de parole est journalisée et ignorée : la transcription du canal continue.
+    /// Si les modèles ne peuvent pas être préparés, le flux de segments se termine aussitôt.
     public nonisolated func transcribe(_ audio: AsyncStream<AudioChunk>) -> AsyncStream<TranscriptSegment> {
         let (segments, continuation) = AsyncStream<TranscriptSegment>.makeStream()
         let task = Task { await run(audio, output: continuation) }
@@ -29,40 +31,67 @@ public actor ParakeetEngine: TranscriptionEngine {
 
     private func run(_ audio: AsyncStream<AudioChunk>, output: AsyncStream<TranscriptSegment>.Continuation) async {
         defer { output.finish() }
+        let models: LoadedModels
         do {
-            let models = try await self.models.loaded()
-            var vadState = await models.vad.makeStreamState()
-            var accumulator = UtteranceAccumulator()
-            // Les morceaux reçus sont regroupés en blocs de la taille attendue par le VAD.
-            var pending: [Float] = []
-            var pendingStart: TimeInterval = 0
-            for await chunk in audio {
-                if pending.isEmpty {
-                    pendingStart = chunk.startTime
-                }
-                pending += chunk.samples
-                while pending.count >= Self.vadBlockSize {
-                    let block = AudioChunk(samples: Array(pending.prefix(Self.vadBlockSize)), startTime: pendingStart)
-                    pending.removeFirst(Self.vadBlockSize)
-                    pendingStart += Double(Self.vadBlockSize) / Double(AudioChunk.sampleRate)
+            models = try await self.models.loaded()
+        } catch {
+            return
+        }
+        var vadState = await models.vad.makeStreamState()
+        var accumulator = UtteranceAccumulator()
+        // Les morceaux reçus sont regroupés en blocs de la taille attendue par le VAD.
+        var pending: [Float] = []
+        var pendingStart: TimeInterval = 0
+        for await chunk in audio {
+            if pending.isEmpty {
+                pendingStart = chunk.startTime
+            }
+            pending += chunk.samples
+            while pending.count >= Self.vadBlockSize {
+                let block = AudioChunk(samples: Array(pending.prefix(Self.vadBlockSize)), startTime: pendingStart)
+                pending.removeFirst(Self.vadBlockSize)
+                pendingStart += Double(Self.vadBlockSize) / Double(AudioChunk.sampleRate)
 
+                var boundary: SpeechBoundary?
+                do {
                     let result = try await models.vad.processStreamingChunk(block.samples, state: vadState)
                     vadState = result.state
-                    let boundary = result.event.map { event -> SpeechBoundary in
+                    boundary = result.event.map { event in
                         switch event.kind {
                         case .speechStart: .start(sampleIndex: event.sampleIndex)
                         case .speechEnd: .end(sampleIndex: event.sampleIndex)
                         }
                     }
-                    if let utterance = accumulator.append(block, boundary: boundary),
-                       let segment = try await transcribe(utterance, with: models.asr)
-                    {
-                        output.yield(segment)
-                    }
+                } catch {
+                    // Le bloc reste dans l'accumulateur pour garder les index alignés, sans limite repérée.
+                    logger.error("VAD \(String(describing: self.speaker), privacy: .public) : bloc ignoré, \(error.localizedDescription, privacy: .public)")
+                }
+                if let utterance = accumulator.append(block, boundary: boundary) {
+                    await emit(utterance, with: models.asr, to: output)
                 }
             }
+        }
+        // Fin du flux (fin du replay, audio coupé) : la prise de parole en cours est transcrite telle quelle.
+        guard !Task.isCancelled else { return }
+        if !pending.isEmpty {
+            _ = accumulator.append(AudioChunk(samples: pending, startTime: pendingStart), boundary: nil)
+        }
+        if let utterance = accumulator.finish() {
+            await emit(utterance, with: models.asr, to: output)
+        }
+    }
+
+    private func emit(
+        _ utterance: Utterance,
+        with asr: AsrManager,
+        to output: AsyncStream<TranscriptSegment>.Continuation
+    ) async {
+        do {
+            if let segment = try await transcribe(utterance, with: asr) {
+                output.yield(segment)
+            }
         } catch {
-            logger.error("Transcription \(String(describing: self.speaker), privacy: .public) interrompue : \(error.localizedDescription, privacy: .public)")
+            logger.error("Transcription \(String(describing: self.speaker), privacy: .public) : prise de parole ignorée, \(error.localizedDescription, privacy: .public)")
         }
     }
 

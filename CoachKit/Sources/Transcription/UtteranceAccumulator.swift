@@ -20,6 +20,9 @@ struct UtteranceAccumulator {
     /// Audio gardé hors prise de parole : le VAD situe un début jusqu'à un bloc et une marge avant le bloc
     /// où il le détecte.
     var lookbackSampleCount = AudioChunk.sampleRate
+    /// Au-delà, la prise de parole est coupée et la suite forme une nouvelle prise de parole. Le VAD en streaming
+    /// ne limite pas la durée : sans plafond, un bruit continu ferait grossir la mémoire sans fin.
+    var maximumUtteranceSampleCount = 30 * AudioChunk.sampleRate
 
     private var buffer: [Float] = []
     /// Index, depuis le début du flux, du premier échantillon de `buffer`.
@@ -28,6 +31,8 @@ struct UtteranceAccumulator {
     private var speechStart: Int?
     /// Instant du premier échantillon du flux.
     private var streamStartTime: TimeInterval?
+
+    private var bufferEnd: Int { bufferStart + buffer.count }
 
     /// Ajoute un morceau d'audio et la limite que le VAD y a repérée. Renvoie la prise de parole qui vient
     /// de se terminer, s'il y en a une.
@@ -39,27 +44,45 @@ struct UtteranceAccumulator {
         var utterance: Utterance?
         switch boundary {
         case .start(let index):
-            speechStart = max(index, bufferStart)
+            // Un second début sans fin entre les deux : la prise de parole en cours continue.
+            if speechStart == nil {
+                speechStart = max(index, bufferStart)
+            }
         case .end(let index):
+            // Une fin sans début (bloc manqué par le VAD) est ignorée.
             if let start = speechStart {
-                let end = min(max(index, start), bufferStart + buffer.count)
-                utterance = Utterance(
-                    samples: Array(buffer[(start - bufferStart)..<(end - bufferStart)]),
-                    start: time(ofSample: start),
-                    end: time(ofSample: end)
-                )
+                utterance = makeUtterance(from: start, to: min(max(index, start), bufferEnd))
                 speechStart = nil
             }
         case nil:
             break
         }
+        if utterance == nil, let start = speechStart, bufferEnd - start >= maximumUtteranceSampleCount {
+            utterance = makeUtterance(from: start, to: bufferEnd)
+            speechStart = bufferEnd
+        }
         trimBuffer()
         return utterance
     }
 
+    /// Fin du flux : renvoie la prise de parole en cours, coupée là où l'audio s'arrête.
+    mutating func finish() -> Utterance? {
+        guard let start = speechStart, bufferEnd > start else { return nil }
+        speechStart = nil
+        return makeUtterance(from: start, to: bufferEnd)
+    }
+
+    private func makeUtterance(from start: Int, to end: Int) -> Utterance {
+        Utterance(
+            samples: Array(buffer[(start - bufferStart)..<(end - bufferStart)]),
+            start: time(ofSample: start),
+            end: time(ofSample: end)
+        )
+    }
+
     /// Pendant une prise de parole, tout est gardé depuis son début ; sinon, seulement les dernières secondes.
     private mutating func trimBuffer() {
-        let keepFrom = speechStart ?? (bufferStart + buffer.count - lookbackSampleCount)
+        let keepFrom = speechStart ?? (bufferEnd - lookbackSampleCount)
         let dropCount = keepFrom - bufferStart
         guard dropCount > 0 else { return }
         buffer.removeFirst(dropCount)

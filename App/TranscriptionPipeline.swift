@@ -14,6 +14,7 @@ final class TranscriptionPipeline {
     private let notch: NotchPanelController
     private var tasks: [Task<Void, Never>] = []
     private var lines: [String] = []
+    private var modelsSettled = false
 
     init(replayFile: URL, notch: NotchPanelController) {
         source = ReplayAudioSource(file: replayFile)
@@ -40,8 +41,10 @@ final class TranscriptionPipeline {
     private func run() async {
         do {
             try await models.prepare()
+            modelsSettled = true
         } catch {
-            notch.display(.text("Modèles de transcription indisponibles : \(error.localizedDescription)"))
+            modelsSettled = true
+            notch.display(.text(error.localizedDescription))
             return
         }
         notch.display(.text("Écoute…"))
@@ -56,11 +59,15 @@ final class TranscriptionPipeline {
         do {
             try await source.start()
         } catch {
-            notch.display(.text("Lecture du fichier impossible : \(error.localizedDescription)"))
+            notch.display(.text(error.localizedDescription))
+            // Termine les flux audio : les moteurs s'arrêtent au lieu d'attendre indéfiniment.
+            await source.stop()
         }
     }
 
     private func show(_ state: ModelLoadState) {
+        // Un avancement encore en file ne doit pas écraser le message affiché après la préparation.
+        guard !modelsSettled else { return }
         switch state {
         case .downloading(let fraction):
             notch.display(.text("Téléchargement des modèles de transcription : \(Int(fraction * 100)) %"))
