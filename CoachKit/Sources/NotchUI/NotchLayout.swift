@@ -8,8 +8,12 @@ struct NotchLayout {
     var pillSize = CGSize(width: 200, height: 32)
     /// Écart entre le haut de l'écran et la pilule.
     var pillTopMargin: CGFloat = 4
-    /// Taille de la zone de texte du panel déplié, sous la notch.
-    var expandedContentSize = CGSize(width: 440, height: 80)
+    /// Largeur du panel déplié : fixe, seule sa hauteur suit le texte.
+    var expandedWidth: CGFloat = 440
+    /// Hauteur minimale de la zone de texte : une ligne et ses marges.
+    var minimumExpandedContentHeight: CGFloat = 40
+    /// Part maximale de la hauteur de l'écran que le panel déplié occupe, depuis le haut. Au-delà, le texte défile.
+    var maximumExpandedHeightFraction: CGFloat = 1.0 / 3
 
     func placement(for screen: ScreenMetrics) -> NotchPlacement {
         if let notch = notchFrame(on: screen) {
@@ -25,13 +29,20 @@ struct NotchLayout {
         return NotchPlacement(frame: frame, style: .pill)
     }
 
-    /// Cadre du panel déplié : il descend sous la notch (ou sous la pilule) pour afficher du texte.
-    func expandedPlacement(for screen: ScreenMetrics) -> NotchPlacement {
-        let content = expandedContentSize
+    /// Largeur du panel déplié sur cet écran, pour mesurer la hauteur du texte avant de le placer.
+    func expandedWidth(for screen: ScreenMetrics) -> CGFloat {
+        guard let notch = notchFrame(on: screen) else { return expandedWidth }
+        return max(expandedWidth, notch.width + 2 * notchSideExtension)
+    }
+
+    /// Cadre du panel déplié : il descend sous la notch (ou sous la pilule) de la hauteur du texte, sans dépasser
+    /// le plafond. Ancré en haut de l'écran : seul son bas bouge quand le texte grandit.
+    func expandedPlacement(for screen: ScreenMetrics, contentHeight: CGFloat) -> NotchPlacement {
+        let width = expandedWidth(for: screen)
+        let maximumHeight = (screen.frame.height * maximumExpandedHeightFraction).rounded(.down)
         if let notch = notchFrame(on: screen) {
             // Centré sur la notch, il la recouvre puis descend en dessous pour le texte.
-            let width = max(content.width, notch.width + 2 * notchSideExtension)
-            let height = notch.height + content.height
+            let height = notch.height + clampedContentHeight(contentHeight, maximum: maximumHeight - notch.height)
             let frame = CGRect(
                 x: notch.midX - width / 2,
                 y: screen.frame.maxY - height,
@@ -41,13 +52,18 @@ struct NotchLayout {
             return NotchPlacement(frame: frame, style: .notch, contentTopInset: notch.height)
         }
 
+        let height = clampedContentHeight(contentHeight, maximum: maximumHeight - pillTopMargin)
         let frame = CGRect(
-            x: screen.frame.midX - content.width / 2,
-            y: screen.frame.maxY - pillTopMargin - content.height,
-            width: content.width,
-            height: content.height
+            x: screen.frame.midX - width / 2,
+            y: screen.frame.maxY - pillTopMargin - height,
+            width: width,
+            height: height
         )
         return NotchPlacement(frame: frame, style: .pill)
+    }
+
+    private func clampedContentHeight(_ height: CGFloat, maximum: CGFloat) -> CGFloat {
+        min(max(height.rounded(.up), minimumExpandedContentHeight), max(maximum, minimumExpandedContentHeight))
     }
 
     /// Cadre de la notch matérielle, ou `nil` si l'écran n'en a pas ou si ses mesures sont incohérentes

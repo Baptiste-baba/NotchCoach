@@ -15,8 +15,8 @@ final class NotchPanel: NSPanel {
         sharingType = .none
         // Un panel se masque par défaut quand l'app perd le focus ; la nôtre ne l'a jamais.
         hidesOnDeactivate = false
-        // Au-dessus de la barre de menus : les clics doivent atteindre les éléments qu'il recouvre.
-        // À désactiver le jour où l'état déplié devient interactif.
+        // Au-dessus de la barre de menus : replié, les clics doivent atteindre les éléments qu'il recouvre.
+        // `NotchPanelController` l'active seulement quand le panel est déplié, pour le défilement du texte.
         ignoresMouseEvents = true
         isMovable = false
         isOpaque = false

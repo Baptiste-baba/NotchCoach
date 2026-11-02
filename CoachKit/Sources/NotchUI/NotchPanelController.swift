@@ -15,6 +15,8 @@ public final class NotchPanelController {
     /// Une notification d'écran déjà en file peut arriver après `hide()` : elle ne doit pas réafficher le panel.
     private var isShown = false
     private var content: NotchContent = .empty
+    /// Mesure la hauteur du texte avec la même vue que celle affichée, pour que le panel la contienne exactement.
+    private let textMeasurer = NSHostingController(rootView: NotchExpandedText(text: ""))
 
     public init() {
         panel = NotchPanel()
@@ -64,14 +66,37 @@ public final class NotchPanelController {
             return
         }
         let metrics = ScreenMetrics(screen: screen)
-        let placement = content == .empty ? layout.placement(for: metrics) : layout.expandedPlacement(for: metrics)
+        let placement: NotchPlacement
+        switch content {
+        case .empty:
+            placement = layout.placement(for: metrics)
+        case .text(let text):
+            let width = layout.expandedWidth(for: metrics)
+            placement = layout.expandedPlacement(for: metrics, contentHeight: height(of: text, width: width))
+        }
         logger.debug("Panel \(String(describing: placement.style), privacy: .public) en \(placement.frame.debugDescription, privacy: .public)")
+        // Replié, il laisse passer les clics vers la barre de menus ; déplié, il reçoit le défilement du trackpad.
+        // Il ne devient jamais la fenêtre active pour autant.
+        panel.ignoresMouseEvents = content == .empty
         hostingView.rootView = NotchView(
             style: placement.style,
             contentTopInset: placement.contentTopInset,
             content: content
         )
-        panel.setFrame(placement.frame, display: true)
+        if panel.isVisible, panel.frame != placement.frame {
+            // Animation sobre : le panel s'allonge ou se replie depuis le haut, sans saut.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.15
+                panel.animator().setFrame(placement.frame, display: true)
+            }
+        } else {
+            panel.setFrame(placement.frame, display: true)
+        }
         panel.orderFrontRegardless()
+    }
+
+    private func height(of text: String, width: CGFloat) -> CGFloat {
+        textMeasurer.rootView = NotchExpandedText(text: text)
+        return textMeasurer.sizeThatFits(in: CGSize(width: width, height: .greatestFiniteMagnitude)).height
     }
 }

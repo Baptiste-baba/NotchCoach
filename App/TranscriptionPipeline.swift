@@ -6,7 +6,8 @@ import Transcription
 /// Relie une source audio aux moteurs de transcription des deux canaux et affiche la transcription brute
 /// dans la notch (étape 3).
 final class TranscriptionPipeline {
-    /// Nombre de prises de parole visibles : la zone dépliée tient environ trois lignes.
+    /// Nombre de prises de parole affichées : un affichage de contrôle de l'étape 3, remplacé par les
+    /// suggestions de Claude à l'étape 5.
     private static let visibleSegmentCount = 2
 
     private let source: ReplayAudioSource
