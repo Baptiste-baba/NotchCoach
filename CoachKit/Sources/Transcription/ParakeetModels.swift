@@ -4,28 +4,38 @@ import os
 /// Modèles Parakeet Ultra et Silero VAD : téléchargés une fois depuis Hugging Face à une révision figée,
 /// chargés une seule fois et partagés par les moteurs des deux canaux.
 public actor ParakeetModels {
-    /// Avancement de la préparation, à afficher dans l'UI.
-    public nonisolated let loadStates: AsyncStream<ModelLoadState>
-    private let loadStatesContinuation: AsyncStream<ModelLoadState>.Continuation
     private var preparation: Task<LoadedModels, any Error>?
 
-    public init() {
-        (loadStates, loadStatesContinuation) = AsyncStream.makeStream()
+    public init() {}
+
+    /// Télécharge les modèles s'ils ne sont pas sur le disque, puis les charge. Le flux donne l'avancement, puis se
+    /// termine quand les modèles sont prêts, ou sur une `TranscriptionError` : dans un seul flux, aucun avancement ne
+    /// peut arriver après le résultat. Les appels suivants réutilisent les modèles chargés ; après un échec, un nouvel
+    /// appel réessaie.
+    public nonisolated func prepare() -> AsyncThrowingStream<ModelLoadState, any Error> {
+        AsyncThrowingStream { continuation in
+            let task = Task {
+                do {
+                    _ = try await self.loaded { continuation.yield($0) }
+                    continuation.finish()
+                } catch {
+                    continuation.finish(throwing: error)
+                }
+            }
+            continuation.onTermination = { _ in task.cancel() }
+        }
     }
 
-    /// Télécharge les modèles s'ils ne sont pas sur le disque, puis les charge. Les appels suivants réutilisent
-    /// les modèles déjà chargés. Après un échec, un nouvel appel réessaie.
-    public func prepare() async throws(TranscriptionError) {
-        _ = try await loaded()
-    }
-
-    /// Modèles chargés, pour les moteurs. Prépare les modèles s'ils ne le sont pas encore.
-    func loaded() async throws(TranscriptionError) -> LoadedModels {
+    /// Modèles chargés, pour les moteurs. Prépare les modèles s'ils ne le sont pas encore ; `progress` reçoit
+    /// l'avancement quand c'est cet appel qui lance la préparation.
+    func loaded(
+        progress: @escaping @Sendable (ModelLoadState) -> Void = { _ in }
+    ) async throws(TranscriptionError) -> LoadedModels {
         let task: Task<LoadedModels, any Error>
         if let preparation {
             task = preparation
         } else {
-            task = Task { try await load() }
+            task = Task { try await load(progress: progress) }
             preparation = task
         }
         do {
@@ -40,18 +50,16 @@ public actor ParakeetModels {
         }
     }
 
-    private func load() async throws -> LoadedModels {
+    private func load(progress: @escaping @Sendable (ModelLoadState) -> Void) async throws -> LoadedModels {
         for pin in [ModelPin.parakeetUltra, ModelPin.sileroVAD] {
             ModelRegistry.revisionOverrides[pin.repository] = pin.revision
         }
-        let states = loadStatesContinuation
-        // Le VAD pèse quelques Mo : seul le téléchargement de Parakeet est suivi.
-        let vad = try await VadManager()
-        let asrModels = try await AsrModels.downloadAndLoad(version: .ultra) { progress in
-            states.yield(Self.loadState(for: progress))
+        // Le VAD pèse quelques Mo : chargé en parallèle, seul le téléchargement de Parakeet est suivi.
+        async let vad = VadManager()
+        let asrModels = try await AsrModels.downloadAndLoad(version: .ultra) { downloadProgress in
+            progress(Self.loadState(for: downloadProgress))
         }
-        states.yield(.ready)
-        return LoadedModels(asr: AsrManager(models: asrModels), vad: vad)
+        return try await LoadedModels(asr: AsrManager(models: asrModels), vad: vad)
     }
 
     /// Part de l'avancement que FluidAudio réserve au téléchargement d'un dépôt de modèles, la compilation

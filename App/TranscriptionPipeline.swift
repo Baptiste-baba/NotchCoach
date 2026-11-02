@@ -15,7 +15,6 @@ final class TranscriptionPipeline {
     private let notch: NotchPanelController
     private var tasks: [Task<Void, Never>] = []
     private var lines: [String] = []
-    private var modelsSettled = false
 
     init(replayFile: URL, notch: NotchPanelController) {
         source = ReplayAudioSource(file: replayFile)
@@ -25,11 +24,6 @@ final class TranscriptionPipeline {
     /// Prépare les modèles (avancement affiché dans la notch), puis lance la transcription des deux canaux
     /// et la lecture du fichier.
     func start() {
-        tasks.append(Task {
-            for await state in models.loadStates {
-                show(state)
-            }
-        })
         tasks.append(Task { await run() })
     }
 
@@ -41,13 +35,14 @@ final class TranscriptionPipeline {
 
     private func run() async {
         do {
-            try await models.prepare()
-            modelsSettled = true
+            for try await state in models.prepare() {
+                show(state)
+            }
         } catch {
-            modelsSettled = true
             notch.display(.text(error.localizedDescription))
             return
         }
+        guard !Task.isCancelled else { return }
         notch.display(.text("Écoute…"))
         for speaker in Speaker.allCases {
             let segments = ParakeetEngine(speaker: speaker, models: models).transcribe(source.chunks(of: speaker))
@@ -67,15 +62,11 @@ final class TranscriptionPipeline {
     }
 
     private func show(_ state: ModelLoadState) {
-        // Un avancement encore en file ne doit pas écraser le message affiché après la préparation.
-        guard !modelsSettled else { return }
         switch state {
         case .downloading(let fraction):
             notch.display(.text("Téléchargement des modèles de transcription : \(Int(fraction * 100)) %"))
         case .loading:
             notch.display(.text("Chargement des modèles de transcription…"))
-        case .ready:
-            break
         }
     }
 
