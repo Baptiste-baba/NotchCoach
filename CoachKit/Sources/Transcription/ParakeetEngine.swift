@@ -3,9 +3,6 @@ import FluidAudio
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "Transcription")
-private let signposter = OSSignposter(subsystem: "io.github.baptiste-baba.NotchCoach", category: "Transcription")
-
 /// Transcription d'un canal avec FluidAudio : Silero VAD repère la fin de chaque prise de parole, puis
 /// Parakeet Ultra transcrit le segment d'un coup sur le Neural Engine.
 public actor ParakeetEngine: TranscriptionEngine {

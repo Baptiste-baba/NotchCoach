@@ -1,8 +1,6 @@
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "ClaudeSession")
-
 /// Un process `claude` lancé, avec ses pipes : écriture sur stdin, lecture de stdout ligne par ligne.
 final class ClaudeProcess {
     /// Lignes de stdout. Le flux se termine quand le process meurt (stdout fermé).

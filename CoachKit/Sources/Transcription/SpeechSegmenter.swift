@@ -3,8 +3,6 @@ import FluidAudio
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "Transcription")
-
 /// Découpe l'audio d'un canal en prises de parole : regroupe les morceaux reçus en blocs de la taille attendue
 /// par le VAD, interroge le VAD sur chaque bloc et accumule l'audio entre les limites qu'il repère.
 struct SpeechSegmenter {

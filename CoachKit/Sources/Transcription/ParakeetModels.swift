@@ -1,8 +1,6 @@
 import FluidAudio
 import os
 
-private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "Transcription")
-
 /// Modèles Parakeet Ultra et Silero VAD : téléchargés une fois depuis Hugging Face à une révision figée,
 /// chargés une seule fois et partagés par les moteurs des deux canaux.
 public actor ParakeetModels {

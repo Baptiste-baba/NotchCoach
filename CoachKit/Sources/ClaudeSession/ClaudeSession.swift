@@ -1,9 +1,6 @@
 import Foundation
 import os
 
-private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "ClaudeSession")
-private let signposter = OSSignposter(subsystem: "io.github.baptiste-baba.NotchCoach", category: "ClaudeSession")
-
 /// Possède le process `claude` pour toute la durée d'un call : lancement, envoi des requêtes,
 /// streaming des réponses, abandon des réponses obsolètes et redémarrage automatique.
 public actor ClaudeSession: LLMSession {
