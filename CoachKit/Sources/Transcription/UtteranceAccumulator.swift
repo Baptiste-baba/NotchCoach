@@ -55,7 +55,7 @@ struct UtteranceAccumulator {
             if let start = speechStart {
                 let end = min(index, bufferEnd)
                 if end > start {
-                    utterance = makeUtterance(from: start, to: end)
+                    utterance = makeUtterance(from: start, to: end, isComplete: true)
                 }
                 speechStart = nil
             }
@@ -63,7 +63,8 @@ struct UtteranceAccumulator {
             break
         }
         if utterance == nil, let start = speechStart, bufferEnd - start >= maximumUtteranceSampleCount {
-            utterance = makeUtterance(from: start, to: bufferEnd)
+            // La personne parle encore : ce morceau n'est pas final.
+            utterance = makeUtterance(from: start, to: bufferEnd, isComplete: false)
             speechStart = bufferEnd
         }
         trimBuffer()
@@ -74,15 +75,15 @@ struct UtteranceAccumulator {
     mutating func finish() -> Utterance? {
         guard let start = speechStart, bufferEnd > start else { return nil }
         speechStart = nil
-        return makeUtterance(from: start, to: bufferEnd)
+        return makeUtterance(from: start, to: bufferEnd, isComplete: true)
     }
 
-    private func makeUtterance(from start: Int, to end: Int) -> Utterance {
+    private func makeUtterance(from start: Int, to end: Int, isComplete: Bool) -> Utterance {
         Utterance(
             samples: Array(buffer[(start - bufferStart)..<(end - bufferStart)]),
             start: time(ofSample: start),
             end: time(ofSample: end),
-            isComplete: true
+            isComplete: isComplete
         )
     }
 

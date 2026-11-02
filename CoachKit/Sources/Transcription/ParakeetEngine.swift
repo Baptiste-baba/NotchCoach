@@ -70,6 +70,12 @@ public actor ParakeetEngine: TranscriptionEngine {
         let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return nil }
         logger.debug("Segment \(String(describing: self.speaker), privacy: .public) : \(text, privacy: .private)")
-        return TranscriptSegment(speaker: speaker, text: text, isFinal: true, start: utterance.start, end: utterance.end)
+        return TranscriptSegment(
+            speaker: speaker,
+            text: text,
+            isFinal: utterance.isComplete,
+            start: utterance.start,
+            end: utterance.end
+        )
     }
 }
