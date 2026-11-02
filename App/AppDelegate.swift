@@ -4,7 +4,7 @@ import NotchUI
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notchPanelController = NotchPanelController()
     private let launchOptions = LaunchOptions(arguments: CommandLine.arguments)
-    private var transcriptionPipeline: TranscriptionPipeline?
+    private var callPipeline: CallPipeline?
 
     #if DEBUG
     private(set) lazy var claudeDebugProbe = ClaudeDebugProbe(notch: notchPanelController)
@@ -13,13 +13,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationDidFinishLaunching(_ notification: Notification) {
         notchPanelController.show()
         if let replayFile = launchOptions.replayFile {
-            let pipeline = TranscriptionPipeline(replayFile: replayFile, notch: notchPanelController)
-            transcriptionPipeline = pipeline
+            let pipeline = CallPipeline(replayFile: replayFile, notch: notchPanelController)
+            callPipeline = pipeline
             pipeline.start()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        transcriptionPipeline?.stop()
+        callPipeline?.stop()
     }
 }
