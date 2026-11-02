@@ -76,6 +76,16 @@ struct SpeechSegmenterTests {
         #expect(utterances.map(\.samples) == [Array(repeating: 1, count: 6)])
     }
 
+    @Test func finishKeepsAnUtteranceCutAtTheMaximumByTheLastPartialBlock() async {
+        var segmenter = segmenter(maximumUtteranceSampleCount: 10)
+
+        _ = await segmenter.append(chunk(1, count: 8, at: 0))
+        _ = await segmenter.append(chunk(1, count: 2, at: 8))
+        let utterances = segmenter.finish()
+
+        #expect(utterances.map(\.samples.count) == [10])
+    }
+
     @Test func finishWithoutSpeechReturnsNothing() async {
         var segmenter = segmenter()
 

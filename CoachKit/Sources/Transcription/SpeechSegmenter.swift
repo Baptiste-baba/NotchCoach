@@ -71,10 +71,16 @@ struct SpeechSegmenter {
 
     /// Fin du flux (fin du replay, audio coupé) : renvoie la prise de parole en cours, coupée là où l'audio s'arrête.
     mutating func finish() -> [Utterance] {
-        if !pending.isEmpty {
-            _ = accumulator.append(AudioChunk(samples: pending, startTime: pendingStart), boundary: nil)
-            pending = []
+        var utterances: [Utterance] = []
+        // Le dernier morceau, plus court qu'un bloc, peut faire dépasser la durée maximale : la prise de parole
+        // coupée là est gardée, et `finish()` renvoie ensuite le reste.
+        if !pending.isEmpty, let utterance = accumulator.append(AudioChunk(samples: pending, startTime: pendingStart), boundary: nil) {
+            utterances.append(utterance)
         }
-        return accumulator.finish().map { [$0] } ?? []
+        pending = []
+        if let utterance = accumulator.finish() {
+            utterances.append(utterance)
+        }
+        return utterances
     }
 }
