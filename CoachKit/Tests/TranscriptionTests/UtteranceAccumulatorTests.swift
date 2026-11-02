@@ -96,6 +96,32 @@ struct UtteranceAccumulatorTests {
         #expect(second?.isComplete == true)
     }
 
+    @Test func endAnnouncedBeforeTheCutClosesTheTurnWithAnEmptyUtterance() {
+        var accumulator = UtteranceAccumulator(maximumUtteranceSampleCount: 150)
+
+        _ = accumulator.append(chunk(from: 0, count: 100), boundary: .start(sampleIndex: 0))
+        let cut = accumulator.append(chunk(from: 100, count: 100), boundary: nil)
+        // Le VAD annonce la fin en retard, datée d'avant la coupure : la parole s'était arrêtée à 180.
+        let closing = accumulator.append(chunk(from: 200, count: 100), boundary: .end(sampleIndex: 180))
+
+        #expect(cut?.isComplete == false)
+        #expect(closing?.samples.isEmpty == true)
+        #expect(closing?.isComplete == true)
+        #expect(closing?.start == 200 / rate)
+        #expect(accumulator.finish() == nil)
+    }
+
+    @Test func audioEndingRightAtTheCutClosesTheTurn() {
+        var accumulator = UtteranceAccumulator(maximumUtteranceSampleCount: 150)
+
+        _ = accumulator.append(chunk(from: 0, count: 100), boundary: .start(sampleIndex: 0))
+        _ = accumulator.append(chunk(from: 100, count: 100), boundary: nil)
+        let closing = accumulator.finish()
+
+        #expect(closing?.samples.isEmpty == true)
+        #expect(closing?.isComplete == true)
+    }
+
     @Test func finishReturnsTheUtteranceCutByTheEndOfTheAudio() {
         var accumulator = UtteranceAccumulator()
 

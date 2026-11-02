@@ -31,6 +31,9 @@ struct UtteranceAccumulator {
     private var bufferStart = 0
     /// Début de la prise de parole en cours, s'il y en a une.
     private var speechStart: Int?
+    /// Vrai si la prise de parole en cours suit un morceau coupé par la durée maximale : sa fin doit toujours
+    /// produire une prise de parole complète, même vide, pour clore le tour de parole.
+    private var continuesCutSpeech = false
     /// Instant du premier échantillon du flux.
     private var streamStartTime: TimeInterval?
 
@@ -56,8 +59,12 @@ struct UtteranceAccumulator {
                 let end = min(index, bufferEnd)
                 if end > start {
                     utterance = makeUtterance(from: start, to: end, isComplete: true)
+                } else if continuesCutSpeech {
+                    // Le VAD annonce la fin en retard, datée d'avant la coupure : la parole s'était arrêtée avant elle.
+                    utterance = makeUtterance(from: start, to: start, isComplete: true)
                 }
                 speechStart = nil
+                continuesCutSpeech = false
             }
         case nil:
             break
@@ -66,15 +73,18 @@ struct UtteranceAccumulator {
             // La personne parle encore : ce morceau n'est pas final.
             utterance = makeUtterance(from: start, to: bufferEnd, isComplete: false)
             speechStart = bufferEnd
+            continuesCutSpeech = true
         }
         trimBuffer()
         return utterance
     }
 
-    /// Fin du flux : renvoie la prise de parole en cours, coupée là où l'audio s'arrête.
+    /// Fin du flux : renvoie la prise de parole en cours, coupée là où l'audio s'arrête. Après un morceau coupé,
+    /// elle est renvoyée même vide, pour clore le tour de parole.
     mutating func finish() -> Utterance? {
-        guard let start = speechStart, bufferEnd > start else { return nil }
+        guard let start = speechStart, bufferEnd > start || continuesCutSpeech else { return nil }
         speechStart = nil
+        continuesCutSpeech = false
         return makeUtterance(from: start, to: bufferEnd, isComplete: true)
     }
 

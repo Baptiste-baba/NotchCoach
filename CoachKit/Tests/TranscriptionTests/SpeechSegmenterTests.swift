@@ -83,9 +83,9 @@ struct SpeechSegmenterTests {
         _ = await segmenter.append(chunk(1, count: 2, at: 8))
         let utterances = segmenter.finish()
 
-        #expect(utterances.map(\.samples.count) == [10])
-        // Rien ne suit la coupure : la prise de parole s'arrête avec l'audio, le morceau est final.
-        #expect(utterances.map(\.isComplete) == [true])
+        // Rien ne suit la coupure : une prise de parole vide et complète clôt le tour de parole.
+        #expect(utterances.map(\.samples.count) == [10, 0])
+        #expect(utterances.map(\.isComplete) == [false, true])
     }
 
     @Test func pieceCutBeforeTheEndStaysIncompleteAndTheRestIsComplete() async {

@@ -54,10 +54,13 @@ public actor ParakeetEngine: TranscriptionEngine {
         to output: AsyncStream<TranscriptSegment>.Continuation
     ) async {
         var text = ""
-        do {
-            text = try await transcribe(utterance, with: asr)
-        } catch {
-            logger.error("Transcription \(String(describing: self.speaker), privacy: .public) : prise de parole ignorée, \(error.localizedDescription, privacy: .public)")
+        // Une prise de parole vide ne fait que clore un tour coupé : rien à transcrire.
+        if !utterance.samples.isEmpty {
+            do {
+                text = try await transcribe(utterance, with: asr)
+            } catch {
+                logger.error("Transcription \(String(describing: self.speaker), privacy: .public) : prise de parole ignorée, \(error.localizedDescription, privacy: .public)")
+            }
         }
         let closesCutSpeech = isInCutSpeech && utterance.isComplete
         isInCutSpeech = !utterance.isComplete

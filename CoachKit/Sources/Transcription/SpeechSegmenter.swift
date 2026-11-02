@@ -76,11 +76,9 @@ struct SpeechSegmenter {
             utterances.append(utterance)
         }
         pending = []
+        // Après un morceau coupé, le tour de parole est toujours clos par une prise de parole complète, même vide.
         if let utterance = accumulator.finish() {
             utterances.append(utterance)
-        } else if !utterances.isEmpty {
-            // Le morceau coupé est le dernier : la prise de parole s'arrête avec l'audio, il devient final.
-            utterances[utterances.count - 1].isComplete = true
         }
         return utterances
     }
