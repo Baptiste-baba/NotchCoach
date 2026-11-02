@@ -49,8 +49,8 @@ struct SpeechSegmenterTests {
         }
 
         #expect(utterances.map(\.samples) == [Array(repeating: 1, count: 8)])
-        #expect(utterances.first?.start == 4.0 / 16_000)
-        #expect(utterances.first?.end == 12.0 / 16_000)
+        #expect(utterances.first?.start == 4 / Double(AudioChunk.sampleRate))
+        #expect(utterances.first?.end == 12 / Double(AudioChunk.sampleRate))
     }
 
     @Test func failedVadBlockDoesNotShiftLaterBoundaries() async {
