@@ -4,4 +4,6 @@ public enum NotchContent: Equatable, Sendable {
     case empty
     /// Texte affiché sous la notch, panel déplié.
     case text(String)
+    /// Message d'erreur affiché sous la notch, en rouge, panel déplié.
+    case error(String)
 }

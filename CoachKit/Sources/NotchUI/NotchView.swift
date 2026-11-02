@@ -9,8 +9,8 @@ struct NotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             background
-            if case .text(let text) = content {
-                NotchExpandedView(text: text)
+            if let expandedText {
+                NotchExpandedView(text: expandedText.text, color: expandedText.color)
                     .padding(.top, contentTopInset)
             }
         }
@@ -25,15 +25,24 @@ struct NotchView: View {
             // Noir, coins inférieurs arrondis : se fond dans la notch matérielle qu'il prolonge.
             UnevenRoundedRectangle(bottomLeadingRadius: 10, bottomTrailingRadius: 10)
                 .fill(.black)
-        case (.notch, .text):
+        case (.notch, .text), (.notch, .error):
             UnevenRoundedRectangle(bottomLeadingRadius: 18, bottomTrailingRadius: 18)
                 .fill(.black)
         case (.pill, .empty):
             Capsule()
                 .fill(.black)
-        case (.pill, .text):
+        case (.pill, .text), (.pill, .error):
             RoundedRectangle(cornerRadius: 18)
                 .fill(.black)
+        }
+    }
+
+    /// Texte de l'état déplié et sa couleur : blanc, ou rouge pour une erreur.
+    private var expandedText: (text: String, color: Color)? {
+        switch content {
+        case .empty: nil
+        case .text(let text): (text, .white)
+        case .error(let text): (text, .red)
         }
     }
 }

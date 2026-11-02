@@ -4,10 +4,11 @@ import SwiftUI
 /// au-delà, le texte défile.
 struct NotchExpandedView: View {
     var text: String
+    var color: Color
 
     var body: some View {
         ScrollView(.vertical) {
-            NotchExpandedText(text: text)
+            NotchExpandedText(text: text, color: color)
         }
         // Suit la fin du texte pendant qu'il s'écrit.
         .defaultScrollAnchor(.bottom)
@@ -18,11 +19,12 @@ struct NotchExpandedView: View {
 /// Texte et marges de l'état déplié. Le contrôleur mesure cette vue pour fixer la hauteur du panel.
 struct NotchExpandedText: View {
     var text: String
+    var color: Color = .white
 
     var body: some View {
         Text(text)
             .font(.system(size: 14, weight: .medium))
-            .foregroundStyle(.white)
+            .foregroundStyle(color)
             .multilineTextAlignment(.leading)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)

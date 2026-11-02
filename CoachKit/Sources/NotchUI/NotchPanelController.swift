@@ -40,7 +40,7 @@ public final class NotchPanelController {
         }
     }
 
-    /// Change le contenu affiché : `.empty` replie le panel, `.text` le déplie sous la notch.
+    /// Change le contenu affiché : `.empty` replie le panel, `.text` et `.error` le déplient sous la notch.
     public func display(_ content: NotchContent) {
         self.content = content
         reposition()
@@ -70,7 +70,7 @@ public final class NotchPanelController {
         switch content {
         case .empty:
             placement = layout.placement(for: metrics)
-        case .text(let text):
+        case .text(let text), .error(let text):
             let width = layout.expandedWidth(for: metrics)
             placement = layout.expandedPlacement(for: metrics, contentHeight: height(of: text, width: width))
         }
