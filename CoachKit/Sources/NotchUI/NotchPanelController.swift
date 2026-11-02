@@ -92,7 +92,10 @@ public final class NotchPanelController {
         } else {
             panel.setFrame(placement.frame, display: true)
         }
-        panel.orderFrontRegardless()
+        // Appelé à chaque mot streamé : on ne repasse par le serveur de fenêtres que si le panel est masqué.
+        if !panel.isVisible {
+            panel.orderFrontRegardless()
+        }
     }
 
     private func height(of text: String, width: CGFloat) -> CGFloat {

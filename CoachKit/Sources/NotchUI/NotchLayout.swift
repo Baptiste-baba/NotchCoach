@@ -38,28 +38,22 @@ struct NotchLayout {
     /// Cadre du panel déplié : il descend sous la notch (ou sous la pilule) de la hauteur du texte, sans dépasser
     /// le plafond. Ancré en haut de l'écran : seul son bas bouge quand le texte grandit.
     func expandedPlacement(for screen: ScreenMetrics, contentHeight: CGFloat) -> NotchPlacement {
+        let notch = notchFrame(on: screen)
+        // Sur la notch : collé en haut, il la recouvre puis descend en dessous pour le texte.
+        // En pilule : sous la marge du haut, le texte commence tout de suite.
+        let topMargin = notch == nil ? pillTopMargin : 0
+        let contentTopInset = notch?.height ?? 0
         let width = expandedWidth(for: screen)
-        let maximumHeight = (screen.frame.height * maximumExpandedHeightFraction).rounded(.down)
-        if let notch = notchFrame(on: screen) {
-            // Centré sur la notch, il la recouvre puis descend en dessous pour le texte.
-            let height = notch.height + clampedContentHeight(contentHeight, maximum: maximumHeight - notch.height)
-            let frame = CGRect(
-                x: notch.midX - width / 2,
-                y: screen.frame.maxY - height,
-                width: width,
-                height: height
-            )
-            return NotchPlacement(frame: frame, style: .notch, contentTopInset: notch.height)
-        }
-
-        let height = clampedContentHeight(contentHeight, maximum: maximumHeight - pillTopMargin)
+        let maximumHeight = (screen.frame.height * maximumExpandedHeightFraction).rounded(.down) - topMargin
+        let height = contentTopInset
+            + clampedContentHeight(contentHeight, maximum: maximumHeight - contentTopInset)
         let frame = CGRect(
-            x: screen.frame.midX - width / 2,
-            y: screen.frame.maxY - pillTopMargin - height,
+            x: (notch?.midX ?? screen.frame.midX) - width / 2,
+            y: screen.frame.maxY - topMargin - height,
             width: width,
             height: height
         )
-        return NotchPlacement(frame: frame, style: .pill)
+        return NotchPlacement(frame: frame, style: notch == nil ? .pill : .notch, contentTopInset: contentTopInset)
     }
 
     private func clampedContentHeight(_ height: CGFloat, maximum: CGFloat) -> CGFloat {
