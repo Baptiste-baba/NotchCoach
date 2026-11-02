@@ -44,7 +44,7 @@ final class CallPipeline {
             notch.display(.text("Lancement de Claude…"))
             try await session.start()
         } catch {
-            notch.display(.text(error.localizedDescription))
+            notch.display(.error(error.localizedDescription))
             return
         }
         guard !Task.isCancelled else { return }
@@ -70,9 +70,9 @@ final class CallPipeline {
         do {
             try await source.start()
         } catch {
-            notch.display(.text(error.localizedDescription))
-            // Termine les flux audio : les moteurs s'arrêtent au lieu d'attendre indéfiniment.
-            await source.stop()
+            notch.display(.error(error.localizedDescription))
+            // Sans audio, pas de call : la source, la conversation et Claude s'arrêtent.
+            stop()
         }
     }
 
