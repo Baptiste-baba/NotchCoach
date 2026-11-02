@@ -34,13 +34,13 @@ final class ClaudeDebugProbe {
         timeToFirstToken = nil
         sentAt = .now
         notch.display(.text("…"))
-        let request = LLMRequest(id: nextRequestID, prompt: Self.prompt(named: "claude-test-user"))
+        let request = LLMRequest(id: nextRequestID, prompt: BundledPrompt.text(named: "claude-test-user"))
         nextRequestID += 1
         await session.send(request)
     }
 
     private func makeSession() -> ClaudeSession {
-        let session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: Self.prompt(named: "claude-test-system")))
+        let session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: BundledPrompt.text(named: "claude-test-system")))
         self.session = session
         Task {
             for await event in session.events {
@@ -81,13 +81,6 @@ final class ClaudeDebugProbe {
         case .failed(_, let message):
             notch.display(.text("Échec : \(message)"))
         }
-    }
-
-    private static func prompt(named name: String) -> String {
-        guard let url = Bundle.main.url(forResource: name, withExtension: "md"),
-              let text = try? String(contentsOf: url, encoding: .utf8)
-        else { return "" }
-        return text
     }
 }
 #endif
