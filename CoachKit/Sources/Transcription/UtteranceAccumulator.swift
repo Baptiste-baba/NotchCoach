@@ -49,9 +49,12 @@ struct UtteranceAccumulator {
                 speechStart = max(index, bufferStart)
             }
         case .end(let index):
-            // Une fin sans début (bloc manqué par le VAD) est ignorée.
+            // Une fin sans début (bloc manqué par le VAD) est ignorée, comme une fin qui précède son début.
             if let start = speechStart {
-                utterance = makeUtterance(from: start, to: min(max(index, start), bufferEnd))
+                let end = min(index, bufferEnd)
+                if end > start {
+                    utterance = makeUtterance(from: start, to: end)
+                }
                 speechStart = nil
             }
         case nil:
