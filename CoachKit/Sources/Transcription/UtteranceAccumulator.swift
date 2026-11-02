@@ -7,12 +7,14 @@ enum SpeechBoundary: Equatable, Sendable {
     case end(sampleIndex: Int)
 }
 
-/// Prise de parole complète, prête à être transcrite.
+/// Prise de parole, prête à être transcrite.
 struct Utterance: Equatable, Sendable {
     var samples: [Float]
     /// Début et fin, en secondes depuis le début du call.
     var start: TimeInterval
     var end: TimeInterval
+    /// `false` pour un morceau coupé par la durée maximale alors que la personne parle encore.
+    var isComplete: Bool
 }
 
 /// Découpe l'audio d'un canal en prises de parole à partir des limites repérées par le VAD. Logique pure.
@@ -79,7 +81,8 @@ struct UtteranceAccumulator {
         Utterance(
             samples: Array(buffer[(start - bufferStart)..<(end - bufferStart)]),
             start: time(ofSample: start),
-            end: time(ofSample: end)
+            end: time(ofSample: end),
+            isComplete: true
         )
     }
 
