@@ -18,6 +18,9 @@ public struct TriggerDetector {
 
     /// Reçoit un segment de l'un ou l'autre canal. Renvoie un déclenchement pour une phrase finale du prospect,
     /// hors délai anti-spam ; sinon `nil`.
+    /// - Un segment final sans texte déclenche aussi : il clôt une prise de parole coupée en morceaux, dont le texte
+    ///   est déjà arrivé.
+    /// - Une phrase qui finit avant celle du dernier déclenchement arrive en retard : elle ne déclenche pas.
     public mutating func receive(_ segment: TranscriptSegment) -> Trigger? {
         // Les 0,75 s de silence qu'attend le VAD avant de clore une prise de parole font office de détection
         // de fin de prise de parole : pas d'attente supplémentaire ici.
