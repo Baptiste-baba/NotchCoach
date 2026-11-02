@@ -60,15 +60,14 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Protocole `TranscriptionEngine` : prend un flux audio, émet des `TranscriptSegment`.
 - `TranscriptSegment { speaker, text, isFinal, start, end }`
 - Une instance du moteur par canal.
-- Implémentation : `ParakeetEngine` (FluidAudio). Silero VAD repère la fin de chaque prise de parole, puis Parakeet Ultra (`AsrModelVersion.ultra`, 25 langues européennes) transcrit le segment d'un coup sur le Neural Engine : les segments sont émis finaux, par phrase entière. Parakeet EOU, le modèle de streaming de FluidAudio, est exclu car il ne gère que l'anglais.
+- Implémentation : `ParakeetEngine` (FluidAudio). Silero VAD repère la fin de chaque prise de parole, puis Parakeet Ultra (`AsrModelVersion.ultra`, 25 langues européennes) transcrit le segment d'un coup sur le Neural Engine : les segments sont émis finaux, par phrase entière. Seule exception : une prise de parole de plus de 30 s est coupée en morceaux, et chaque morceau coupé alors que la personne parle encore est émis avec `isFinal: false`. Parakeet EOU, le modèle de streaming de FluidAudio, est exclu car il ne gère que l'anglais.
 - Les modèles (environ 630 Mo) sont téléchargés au premier lancement depuis Hugging Face dans `~/Library/Application Support/FluidAudio/Models/`, chargés une seule fois et partagés par les moteurs des deux canaux.
 
 **Conversation**
-- `TranscriptBuffer` : accumule les segments finaux et fournit, à chaque déclenchement, uniquement les segments nouveaux depuis le dernier message envoyé, formatés pour le prompt. Un segment n'est jamais envoyé deux fois : la session `claude` restant la même pendant tout le call, son historique sert de mémoire de la conversation (environ 15 000 tokens par heure de call, sans doublons).
-- `TriggerDetector` : logique pure, sans I/O, entièrement testée. Déclenche quand :
-  - le dernier segment final vient de `.prospect`,
-  - suivi de ~700 ms sans nouveau segment prospect,
-  - et qu'aucune suggestion n'a été émise depuis X secondes (cooldown, pour éviter le spam).
+- `TranscriptBuffer` : accumule les segments, y compris les morceaux non finaux d'un monologue, et fournit, à chaque déclenchement, uniquement les segments nouveaux depuis le dernier message envoyé, formatés pour le prompt. Un segment n'est jamais envoyé deux fois : la session `claude` restant la même pendant tout le call, son historique sert de mémoire de la conversation (environ 15 000 tokens par heure de call, sans doublons). Après un redémarrage du process `claude`, dont la conversation repart vide, le message suivant contient toute la transcription du call depuis son début.
+- `TriggerDetector` : logique pure, sans I/O, entièrement testée. Déclenche dès qu'arrive un segment final (`isFinal: true`) de `.prospect`, si aucune suggestion n'a été émise depuis 5 s (cooldown, pour éviter le spam).
+  - Pas d'attente supplémentaire après ce segment : les ~0,75 s de silence qu'attend déjà le VAD avant de clore une prise de parole font office de détection de fin de prise de parole. Ce seuil se règle en mesurant à l'étape 5.
+  - Un morceau non final (monologue de plus de 30 s) ne déclenche pas, mais son texte est bien envoyé à Claude avec la suite.
 - Chaque déclenchement porte un `requestId` croissant.
 
 **ClaudeSession**
