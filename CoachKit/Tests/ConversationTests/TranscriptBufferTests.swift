@@ -5,15 +5,6 @@ import Transcription
 @testable import Conversation
 
 struct TranscriptBufferTests {
-    private func segment(
-        _ speaker: Speaker,
-        _ text: String,
-        startingAt start: TimeInterval,
-        isFinal: Bool = true
-    ) -> TranscriptSegment {
-        TranscriptSegment(speaker: speaker, text: text, isFinal: isFinal, start: start, end: start + 2)
-    }
-
     @Test func emptyBufferHasNothingToSend() {
         var buffer = TranscriptBuffer()
 
