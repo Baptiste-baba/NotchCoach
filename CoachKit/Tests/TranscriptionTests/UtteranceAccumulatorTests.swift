@@ -19,6 +19,7 @@ struct UtteranceAccumulatorTests {
 
         #expect(utterance?.samples == (20..<150).map(Float.init))
         #expect(utterance?.isComplete == true)
+        #expect(utterance?.closesCutTurn == false)
         #expect(utterance?.start == 20 / rate)
         #expect(utterance?.end == 150 / rate)
     }
@@ -94,6 +95,9 @@ struct UtteranceAccumulatorTests {
         // La personne parlait encore à la coupure : seul le morceau qui finit par un silence est complet.
         #expect(first?.isComplete == false)
         #expect(second?.isComplete == true)
+        // Seule la fin du tour coupé le clôt.
+        #expect(first?.closesCutTurn == false)
+        #expect(second?.closesCutTurn == true)
     }
 
     @Test func endAnnouncedBeforeTheCutClosesTheTurnWithAnEmptyUtterance() {
@@ -107,6 +111,7 @@ struct UtteranceAccumulatorTests {
         #expect(cut?.isComplete == false)
         #expect(closing?.samples.isEmpty == true)
         #expect(closing?.isComplete == true)
+        #expect(closing?.closesCutTurn == true)
         #expect(closing?.start == 200 / rate)
         #expect(accumulator.finish() == nil)
     }
@@ -120,6 +125,7 @@ struct UtteranceAccumulatorTests {
 
         #expect(closing?.samples.isEmpty == true)
         #expect(closing?.isComplete == true)
+        #expect(closing?.closesCutTurn == true)
     }
 
     @Test func finishReturnsTheUtteranceCutByTheEndOfTheAudio() {
@@ -131,6 +137,7 @@ struct UtteranceAccumulatorTests {
 
         #expect(utterance?.samples == (30..<150).map(Float.init))
         #expect(utterance?.isComplete == true)
+        #expect(utterance?.closesCutTurn == false)
         #expect(accumulator.finish() == nil)
     }
 

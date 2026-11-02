@@ -15,6 +15,9 @@ struct Utterance: Equatable, Sendable {
     var end: TimeInterval
     /// `false` pour un morceau coupé par la durée maximale alors que la personne parle encore.
     var isComplete: Bool
+    /// Vrai pour la prise de parole qui termine un tour coupé par la durée maximale : elle doit être signalée même
+    /// sans aucun mot, pour que la fin du tour soit connue.
+    var closesCutTurn: Bool
 }
 
 /// Découpe l'audio d'un canal en prises de parole à partir des limites repérées par le VAD. Logique pure.
@@ -58,10 +61,10 @@ struct UtteranceAccumulator {
             if let start = speechStart {
                 let end = min(index, bufferEnd)
                 if end > start {
-                    utterance = makeUtterance(from: start, to: end, isComplete: true)
+                    utterance = makeUtterance(from: start, to: end, isComplete: true, closesCutTurn: continuesCutSpeech)
                 } else if continuesCutSpeech {
                     // Le VAD annonce la fin en retard, datée d'avant la coupure : la parole s'était arrêtée avant elle.
-                    utterance = makeUtterance(from: start, to: start, isComplete: true)
+                    utterance = makeUtterance(from: start, to: start, isComplete: true, closesCutTurn: true)
                 }
                 speechStart = nil
                 continuesCutSpeech = false
@@ -71,7 +74,7 @@ struct UtteranceAccumulator {
         }
         if utterance == nil, let start = speechStart, bufferEnd - start >= maximumUtteranceSampleCount {
             // La personne parle encore : ce morceau n'est pas final.
-            utterance = makeUtterance(from: start, to: bufferEnd, isComplete: false)
+            utterance = makeUtterance(from: start, to: bufferEnd, isComplete: false, closesCutTurn: false)
             speechStart = bufferEnd
             continuesCutSpeech = true
         }
@@ -83,17 +86,19 @@ struct UtteranceAccumulator {
     /// elle est renvoyée même vide, pour clore le tour de parole.
     mutating func finish() -> Utterance? {
         guard let start = speechStart, bufferEnd > start || continuesCutSpeech else { return nil }
+        let closesCutTurn = continuesCutSpeech
         speechStart = nil
         continuesCutSpeech = false
-        return makeUtterance(from: start, to: bufferEnd, isComplete: true)
+        return makeUtterance(from: start, to: bufferEnd, isComplete: true, closesCutTurn: closesCutTurn)
     }
 
-    private func makeUtterance(from start: Int, to end: Int, isComplete: Bool) -> Utterance {
+    private func makeUtterance(from start: Int, to end: Int, isComplete: Bool, closesCutTurn: Bool) -> Utterance {
         Utterance(
             samples: Array(buffer[(start - bufferStart)..<(end - bufferStart)]),
             start: time(ofSample: start),
             end: time(ofSample: end),
-            isComplete: isComplete
+            isComplete: isComplete,
+            closesCutTurn: closesCutTurn
         )
     }
 

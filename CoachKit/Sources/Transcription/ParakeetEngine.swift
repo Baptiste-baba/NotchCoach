@@ -8,8 +8,6 @@ import os
 public actor ParakeetEngine: TranscriptionEngine {
     private let speaker: Speaker
     private let models: ParakeetModels
-    /// Vrai entre un morceau coupé par la durée maximale et la fin de la prise de parole.
-    private var isInCutSpeech = false
 
     public init(speaker: Speaker, models: ParakeetModels) {
         self.speaker = speaker
@@ -62,11 +60,9 @@ public actor ParakeetEngine: TranscriptionEngine {
                 logger.error("Transcription \(String(describing: self.speaker), privacy: .public) : prise de parole ignorée, \(error.localizedDescription, privacy: .public)")
             }
         }
-        let closesCutSpeech = isInCutSpeech && utterance.isComplete
-        isInCutSpeech = !utterance.isComplete
         // Sans aucun mot, ou en échec, rien n'est émis, sauf pour clore une prise de parole coupée à 30 s : un segment
         // final vide dit alors au déclencheur que la personne a fini de parler.
-        guard !text.isEmpty || closesCutSpeech else { return }
+        guard !text.isEmpty || utterance.closesCutTurn else { return }
         logger.debug("Segment \(String(describing: self.speaker), privacy: .public) : \(text, privacy: .private)")
         output.yield(TranscriptSegment(
             speaker: speaker,
