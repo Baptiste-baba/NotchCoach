@@ -91,6 +91,8 @@ final class CallPipeline {
             notch.display(.empty)
         case .suggestion(let text), .notice(let text):
             notch.display(.text(text))
+        case .error(let text):
+            notch.display(.error(text))
         }
     }
 }

@@ -26,6 +26,13 @@ struct SuggestionAssembler {
         return displayableText
     }
 
+    /// La réponse a échoué. Renvoie vrai si c'était la requête en cours, faux pour une requête obsolète.
+    mutating func fail(requestID: Int) -> Bool {
+        guard requestID == self.requestID else { return false }
+        self.requestID = nil
+        return true
+    }
+
     /// Tant que la réponse n'est que « - », on ne sait pas encore si c'est le début d'une suggestion : rien à montrer.
     private var displayableText: String? {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)

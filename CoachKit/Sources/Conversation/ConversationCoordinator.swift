@@ -5,7 +5,8 @@ import Transcription
 
 /// Étape « Conversation » d'un call : reçoit les segments des deux canaux, décide quand demander une suggestion,
 /// l'envoie à la session Claude avec les nouvelles répliques, et décide de ce que la notch affiche.
-/// Le démarrage et l'arrêt de la session Claude restent à l'appelant.
+/// L'appelant démarre la session avant le coordinateur et l'arrête à la fin du call. Le coordinateur ne la relance
+/// que si elle a abandonné ses redémarrages automatiques, à la phrase suivante du prospect.
 public actor ConversationCoordinator {
     /// Ce que la notch doit afficher. Un seul consommateur.
     public nonisolated let displays: AsyncStream<CoachDisplay>
@@ -14,7 +15,7 @@ public actor ConversationCoordinator {
     private let session: any LLMSession
     /// Instant zéro du call, le même que celui des segments : les mesures de latence s'y rapportent.
     private let callStart: ContinuousClock.Instant
-    /// Durée d'affichage maximale d'une suggestion après la fin de sa réponse.
+    /// Durée d'affichage maximale d'une suggestion après la fin de sa réponse, ou d'un message d'échec.
     private let suggestionLifetime: Duration
 
     private var detector = TriggerDetector()
@@ -23,6 +24,10 @@ public actor ConversationCoordinator {
     private var latency = LatencyTracker()
     private var sessionTasks: [Task<Void, Never>] = []
     private var hideTask: Task<Void, Never>?
+    /// Ce que la notch affiche en ce moment.
+    private var current = CoachDisplay.hidden
+    /// Dernier état connu de la session : l'appelant l'a démarrée avant de créer le coordinateur.
+    private var sessionState = SessionState.running
     /// Un redémarrage de Claude a vidé sa conversation : toute la transcription repartira au prochain envoi.
     private var needsFullResend = false
     /// De la demande au premier mot affiché, pour Instruments.
@@ -61,10 +66,16 @@ public actor ConversationCoordinator {
     public func receive(_ segment: TranscriptSegment) async {
         let receivedAt = callTime()
         buffer.append(segment)
-        guard let trigger = detector.receive(segment), let prompt = buffer.takeUnsent() else { return }
+        guard let trigger = detector.receive(segment) else { return }
+        if case .failed = sessionState {
+            guard await relaunchSession() else { return }
+        }
+        guard let prompt = buffer.takeUnsent() else { return }
         let requestID = trigger.requestID
         assembler.start(requestID: requestID)
         latency.triggered(requestID: requestID, speechEnd: trigger.segment.end, segmentReceived: receivedAt)
+        // Une demande précédente encore sans premier mot est remplacée : son repère s'arrête là.
+        endSuggestionInterval()
         suggestionInterval = (requestID, signposter.beginInterval("Suggestion"))
         latency.sent(requestID: requestID, at: callTime())
         await session.send(LLMRequest(id: requestID, prompt: prompt))
@@ -76,6 +87,7 @@ public actor ConversationCoordinator {
         sessionTasks = []
         hideTask?.cancel()
         hideTask = nil
+        endSuggestionInterval()
         displaysContinuation.finish()
     }
 
@@ -87,31 +99,77 @@ public actor ConversationCoordinator {
             if let measurement = latency.firstWordShown(requestID: requestID, at: callTime()) {
                 report(measurement)
             }
-            hideTask?.cancel()
-            hideTask = nil
-            displaysContinuation.yield(.suggestion(shown))
+            show(.suggestion(shown))
         case .finished(let requestID):
+            endSuggestionInterval(requestID: requestID)
             // « - » : rien à suggérer, l'ancienne suggestion garde son propre délai.
             guard assembler.finish(requestID: requestID) != nil else { return }
             scheduleHide()
         case .failed(let requestID, let message):
             logger.error("Suggestion n°\(requestID, privacy: .public) sans réponse : \(message, privacy: .private)")
+            guard assembler.fail(requestID: requestID) else { return }
+            endSuggestionInterval(requestID: requestID)
+            // Claude redémarre ou est indisponible : son message d'état explique déjà l'absence de réponse.
+            guard sessionState == .running else { return }
+            let reason = message.trimmingCharacters(in: .whitespacesAndNewlines)
+            show(.error(reason.isEmpty ? "Claude n'a pas pu répondre." : "Claude n'a pas pu répondre : \(reason)"))
+            scheduleHide()
         }
     }
 
     private func handle(_ state: SessionState) {
+        let wasRunning = sessionState == .running
+        sessionState = state
         switch state {
         case .restarting:
             needsFullResend = true
+            show(.notice("Claude redémarre…"))
+        case .failed(let message):
+            logger.error("Claude indisponible : \(message, privacy: .public)")
+            show(.error("Claude est indisponible. Nouvel essai à la prochaine phrase du prospect."))
         case .running:
             // Le nouveau process est prêt : une demande partie pendant le redémarrage a échoué, tout est renvoyé.
-            if needsFullResend {
-                buffer.markAllUnsent()
-                needsFullResend = false
+            prepareFullResendIfNeeded()
+            // Claude est de retour : son message d'état disparaît, mais pas une suggestion déjà commencée.
+            guard !wasRunning else { return }
+            switch current {
+            case .notice, .error:
+                show(.hidden)
+            case .hidden, .suggestion:
+                break
             }
-        case .stopped, .failed:
+        case .stopped:
             break
         }
+    }
+
+    /// Relance la session après l'abandon de ses redémarrages automatiques. Renvoie faux si elle reste indisponible.
+    private func relaunchSession() async -> Bool {
+        do {
+            try await session.start()
+        } catch {
+            logger.error("Relance de Claude impossible : \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        // La conversation du nouveau process est vide : toute la transcription part avec cette demande, sans attendre
+        // que l'état `running` soit traité.
+        prepareFullResendIfNeeded()
+        return true
+    }
+
+    private func prepareFullResendIfNeeded() {
+        guard needsFullResend else { return }
+        buffer.markAllUnsent()
+        needsFullResend = false
+    }
+
+    /// Change ce que la notch affiche. Annule le repli prévu : c'est à l'appelant d'en prévoir un nouveau.
+    private func show(_ display: CoachDisplay) {
+        hideTask?.cancel()
+        hideTask = nil
+        guard display != current else { return }
+        current = display
+        displaysContinuation.yield(display)
     }
 
     private func scheduleHide() {
@@ -120,15 +178,20 @@ public actor ConversationCoordinator {
         hideTask = Task {
             try? await Task.sleep(for: lifetime)
             guard !Task.isCancelled else { return }
-            displaysContinuation.yield(.hidden)
+            show(.hidden)
         }
     }
 
+    /// Termine le repère Instruments de la demande en cours s'il est encore ouvert : celui de `requestID` seulement,
+    /// ou celui de n'importe quelle demande si `requestID` est `nil`.
+    private func endSuggestionInterval(requestID: Int? = nil) {
+        guard let suggestionInterval, requestID == nil || suggestionInterval.requestID == requestID else { return }
+        signposter.endInterval("Suggestion", suggestionInterval.state)
+        self.suggestionInterval = nil
+    }
+
     private func report(_ measurement: LatencyMeasurement) {
-        if let suggestionInterval, suggestionInterval.requestID == measurement.requestID {
-            signposter.endInterval("Suggestion", suggestionInterval.state)
-            self.suggestionInterval = nil
-        }
+        endSuggestionInterval(requestID: measurement.requestID)
         logger.info("""
             Suggestion n°\(measurement.requestID, privacy: .public) : \
             fin de tour \(Self.milliseconds(measurement.endOfTurnDetection), privacy: .public) ms, \

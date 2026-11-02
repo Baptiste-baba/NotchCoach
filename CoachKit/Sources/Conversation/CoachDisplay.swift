@@ -6,4 +6,6 @@ public enum CoachDisplay: Equatable, Sendable {
     case suggestion(String)
     /// Message sur l'état de Claude, par exemple pendant un redémarrage.
     case notice(String)
+    /// Échec, affiché en rouge : Claude n'a pas pu répondre, ou il est indisponible.
+    case error(String)
 }

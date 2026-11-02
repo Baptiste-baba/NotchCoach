@@ -78,7 +78,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Parsing ligne par ligne du JSON en sortie. Une ligne invalide est loguée et ignorée, elle ne fait jamais planter la session.
 - Si un nouveau trigger arrive pendant une génération, la réponse en cours est marquée obsolète via son `requestId` et n'est plus affichée. Elle est aussi interrompue, sinon le CLI la terminerait avant de traiter la nouvelle requête : `{"type":"control_request","request_id":…,"request":{"subtype":"interrupt"}}` sur stdin. C'est le protocole des SDK Claude, absent de `claude --help`, vérifié sur 2.1.310 : la réponse interrompue se termine par un `result` avec `is_error: true` et `terminal_reason: aborted_streaming`, et une interruption sans réponse en cours ne produit aucun `result`.
 - Haiku produit parfois des blocs de réflexion (`thinking_delta`) avant le texte : ils ne sont jamais affichés, mais coûtent de la latence. `--effort low` est une piste à mesurer à l'étape 5.
-- Si le process meurt : redémarrage automatique avec backoff, état visible dans l'UI.
+- Si le process meurt : redémarrage automatique avec backoff, état visible dans l'UI (« Claude redémarre… »). Après 5 tentatives ratées, la notch affiche en rouge « Claude est indisponible », et la phrase suivante du prospect relance Claude avec toute la transcription du call.
 - Protocole `LLMSession` pour pouvoir mocker en test.
 
 **Prompting**
@@ -95,6 +95,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Position calculée depuis `NSScreen.safeAreaInsets` et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Si l'écran principal a une notch, le panel s'intègre avec : même hauteur, il la prolonge de chaque côté. Sans notch (écran externe), fallback en pilule centrée en haut de l'écran.
 - État replié : indicateur discret (écoute active, session Claude prête ou non). État déplié : suggestion en cours. Animation sobre, pas de clignotement.
 - Une suggestion reste affichée jusqu'à ce que la suivante la remplace, et au plus 20 s après la fin de sa réponse : la notch se replie ensuite. Pendant qu'une nouvelle suggestion se prépare, l'ancienne reste affichée jusqu'au premier mot de la nouvelle. Si Claude répond `-` (rien à suggérer), l'ancienne reste, toujours dans sa limite de 20 s.
+- Si Claude ne peut pas répondre (réseau coupé, limite d'usage de l'abonnement, erreur de l'API), un message court en rouge remplace la suggestion, avec la même limite de 20 s. Les erreurs du démarrage d'un call sont aussi affichées en rouge.
 - L'app vit dans la barre de menus (`LSUIElement = YES`), pas d'icône dans le Dock.
 
 ## Confidentialité
