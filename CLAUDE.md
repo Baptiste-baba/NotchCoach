@@ -94,6 +94,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Le panel est toujours sur l'écran principal (`NSScreen.screens.first`, celui choisi comme principal dans Réglages > Moniteurs, et non `NSScreen.main` qui suit le focus) et le suit quand la configuration des écrans change.
 - Position calculée depuis `NSScreen.safeAreaInsets` et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Si l'écran principal a une notch, le panel s'intègre avec : même hauteur, il la prolonge de chaque côté. Sans notch (écran externe), fallback en pilule centrée en haut de l'écran.
 - État replié : indicateur discret (écoute active, session Claude prête ou non). État déplié : suggestion en cours. Animation sobre, pas de clignotement.
+- Une suggestion reste affichée jusqu'à ce que la suivante la remplace, et au plus 20 s après la fin de sa réponse : la notch se replie ensuite. Pendant qu'une nouvelle suggestion se prépare, l'ancienne reste affichée jusqu'au premier mot de la nouvelle. Si Claude répond `-` (rien à suggérer), l'ancienne reste, toujours dans sa limite de 20 s.
 - L'app vit dans la barre de menus (`LSUIElement = YES`), pas d'icône dans le Dock.
 
 ## Confidentialité
