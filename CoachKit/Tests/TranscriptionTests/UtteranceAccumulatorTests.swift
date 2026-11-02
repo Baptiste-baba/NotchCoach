@@ -18,6 +18,7 @@ struct UtteranceAccumulatorTests {
         let utterance = accumulator.append(chunk(from: 100, count: 100), boundary: .end(sampleIndex: 150))
 
         #expect(utterance?.samples == (20..<150).map(Float.init))
+        #expect(utterance?.isComplete == true)
         #expect(utterance?.start == 20 / rate)
         #expect(utterance?.end == 150 / rate)
     }
@@ -90,6 +91,9 @@ struct UtteranceAccumulatorTests {
 
         #expect(first?.samples == (0..<200).map(Float.init))
         #expect(second?.samples == (200..<260).map(Float.init))
+        // La personne parlait encore à la coupure : seul le morceau qui finit par un silence est complet.
+        #expect(first?.isComplete == false)
+        #expect(second?.isComplete == true)
     }
 
     @Test func finishReturnsTheUtteranceCutByTheEndOfTheAudio() {
@@ -100,6 +104,7 @@ struct UtteranceAccumulatorTests {
         let utterance = accumulator.finish()
 
         #expect(utterance?.samples == (30..<150).map(Float.init))
+        #expect(utterance?.isComplete == true)
         #expect(accumulator.finish() == nil)
     }
 
