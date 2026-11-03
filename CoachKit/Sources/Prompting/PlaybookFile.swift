@@ -18,11 +18,15 @@ public struct PlaybookFile: Equatable, Sendable {
     /// Crée le fichier depuis le modèle, et son dossier, s'il n'existe pas encore. Un fichier existant n'est jamais
     /// modifié.
     public func createIfMissing() throws {
-        fatalError("TODO")
+        let fileManager = FileManager.default
+        guard !fileManager.fileExists(atPath: url.path) else { return }
+        try fileManager.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(template.utf8).write(to: url, options: .withoutOverwriting)
     }
 
     /// Lit le playbook, après avoir créé le fichier s'il n'existe pas encore.
     public func load() throws -> Playbook {
-        fatalError("TODO")
+        try createIfMissing()
+        return Playbook(markdown: try String(contentsOf: url, encoding: .utf8))
     }
 }
