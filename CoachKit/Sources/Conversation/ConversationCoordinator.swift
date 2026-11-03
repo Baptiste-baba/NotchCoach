@@ -32,6 +32,9 @@ public actor ConversationCoordinator {
     private var needsFullResend = false
     /// De la demande au premier mot affiché, pour Instruments.
     private var suggestionInterval: (requestID: Int, state: OSSignpostIntervalState)?
+    private var isStopped = false
+    /// `finish()` attend ici le prochain changement : réponse, état de Claude, repli de la notch ou arrêt.
+    private var changeWaiter: CheckedContinuation<Void, Never>?
 
     public init(session: any LLMSession, callStart: ContinuousClock.Instant) {
         self.init(session: session, callStart: callStart, suggestionLifetime: .seconds(20))
@@ -64,6 +67,8 @@ public actor ConversationCoordinator {
     /// Reçoit un segment de l'un ou l'autre canal. Une phrase finale du prospect, hors délai anti-spam, envoie
     /// une demande de suggestion avec les répliques pas encore envoyées.
     public func receive(_ segment: TranscriptSegment) async {
+        // Après l'arrêt, plus rien n'est envoyé : Claude ne doit surtout pas être relancé.
+        guard !isStopped else { return }
         let receivedAt = callTime()
         buffer.append(segment)
         guard let trigger = detector.receive(segment) else { return }
@@ -91,11 +96,16 @@ public actor ConversationCoordinator {
     /// Termine le call sans rien perdre : attend la fin de la réponse en cours et le repli de la notch, puis s'arrête
     /// comme `stop()`. Pour la fin d'un replay, quand plus aucun segment n'arrivera.
     public func finish() async {
-        fatalError("TODO")
+        while !isStopped, assembler.isAnswering || hideTask != nil {
+            await withCheckedContinuation { changeWaiter = $0 }
+        }
+        stop()
     }
 
     /// Arrête le suivi de la session et termine le flux d'affichage.
     public func stop() {
+        isStopped = true
+        defer { notifyChange() }
         sessionTasks.forEach { $0.cancel() }
         sessionTasks = []
         hideTask?.cancel()
@@ -105,6 +115,7 @@ public actor ConversationCoordinator {
     }
 
     private func handle(_ event: LLMEvent) {
+        defer { notifyChange() }
         switch event {
         case .delta(let requestID, let text):
             // L'ancienne suggestion reste affichée jusqu'au premier mot montrable de la nouvelle.
@@ -130,6 +141,7 @@ public actor ConversationCoordinator {
     }
 
     private func handle(_ state: SessionState) {
+        defer { notifyChange() }
         let wasRunning = sessionState == .running
         sessionState = state
         switch state {
@@ -191,7 +203,13 @@ public actor ConversationCoordinator {
             try? await Task.sleep(for: lifetime)
             guard !Task.isCancelled else { return }
             show(.hidden)
+            notifyChange()
         }
+    }
+
+    private func notifyChange() {
+        changeWaiter?.resume()
+        changeWaiter = nil
     }
 
     /// Termine le repère Instruments de la demande en cours s'il est encore ouvert : celui de `requestID` seulement,
