@@ -81,6 +81,13 @@ public actor ConversationCoordinator {
         await session.send(LLMRequest(id: requestID, prompt: prompt))
     }
 
+    /// Affiche un message d'erreur en rouge. Comme une suggestion, il se replie après sa durée d'affichage, ou cède
+    /// la place à l'affichage suivant.
+    public func showError(_ message: String) {
+        show(.error(message))
+        scheduleHide()
+    }
+
     /// Arrête le suivi de la session et termine le flux d'affichage.
     public func stop() {
         sessionTasks.forEach { $0.cancel() }
@@ -112,8 +119,7 @@ public actor ConversationCoordinator {
             // Claude redémarre ou est indisponible : son message d'état explique déjà l'absence de réponse.
             guard sessionState == .running else { return }
             let reason = message.trimmingCharacters(in: .whitespacesAndNewlines)
-            show(.error(reason.isEmpty ? "Claude n'a pas pu répondre." : "Claude n'a pas pu répondre : \(reason)"))
-            scheduleHide()
+            showError(reason.isEmpty ? "Claude n'a pas pu répondre." : "Claude n'a pas pu répondre : \(reason)")
         }
     }
 
