@@ -6,6 +6,16 @@ import SwiftUI
     var body: some Scene {
         // Seul moyen de quitter : l'app n'a ni icône dans le Dock ni barre de menus (LSUIElement).
         MenuBarExtra("NotchCoach", systemImage: "waveform") {
+            if appDelegate.callController.isCallActive {
+                Button("Arrêter le call") {
+                    appDelegate.callController.stopCall()
+                }
+            } else {
+                Button("Démarrer un call") {
+                    appDelegate.callController.startCall()
+                }
+            }
+            Divider()
             Button("Modifier le playbook…") {
                 appDelegate.editPlaybook()
             }

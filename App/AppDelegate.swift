@@ -6,7 +6,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let notchPanelController = NotchPanelController()
     private let launchOptions = LaunchOptions(arguments: CommandLine.arguments)
     private let playbookFile = PlaybookFile(template: BundledPrompt.text(named: "playbook-template"))
-    private var callPipeline: CallPipeline?
+    private(set) lazy var callController = CallController(
+        notch: notchPanelController,
+        playbookFile: playbookFile,
+        replayFile: launchOptions.replayFile
+    )
 
     #if DEBUG
     private(set) lazy var claudeDebugProbe = ClaudeDebugProbe(notch: notchPanelController)
@@ -14,15 +18,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         notchPanelController.show()
-        if let replayFile = launchOptions.replayFile {
-            let pipeline = CallPipeline(replayFile: replayFile, playbookFile: playbookFile, notch: notchPanelController)
-            callPipeline = pipeline
-            pipeline.start()
+        // En mode replay, le call démarre tout de suite.
+        if launchOptions.replayFile != nil {
+            callController.startCall()
         }
     }
 
     func applicationWillTerminate(_ notification: Notification) {
-        callPipeline?.stop()
+        callController.stopCall()
     }
 
     /// Ouvre le playbook dans l'éditeur par défaut, après l'avoir créé s'il n'existe pas encore.
