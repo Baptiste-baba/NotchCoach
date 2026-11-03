@@ -82,7 +82,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Protocole `LLMSession` pour pouvoir mocker en test.
 
 **Prompting**
-- `Playbook` : fichier Markdown éditable par l'utilisateur dans `~/Library/Application Support/NotchCoach/playbook.md` (offre, cible, pricing, objections fréquentes et réponses validées). Chargé dans le system prompt au lancement de la session : une modification compte à partir du call suivant. S'il n'existe pas, l'app le crée avec ces rubriques vides, sans aucun exemple : Claude pourrait citer un faux prix au prospect. Le menu « Modifier le playbook… » l'ouvre dans l'éditeur par défaut.
+- `Playbook` : fichier Markdown éditable par l'utilisateur dans `~/Library/Application Support/NotchCoach/playbook.md` (offre, cible, pricing, objections fréquentes et réponses validées). Chargé dans le system prompt au lancement de la session : une modification compte à partir du call suivant. S'il n'existe pas, l'app le crée avec ces rubriques vides, sans aucun exemple : Claude pourrait citer un faux prix au prospect. Le menu « Modifier le playbook… » l'ouvre dans l'éditeur par défaut, et une alerte explique s'il n'a pas pu être créé. Inutilisable au démarrage d'un call (illisible, pas en UTF-8, plus de 50 000 caractères), il est ignoré : le call démarre sans playbook et la notch en donne la raison en rouge.
 - Format de sortie imposé à Claude : 1 ou 2 suggestions maximum, 20 mots maximum chacune, phrases prêtes à être dites à l'oral, en français. Pas de préambule, pas d'explication.
 - Si rien d'utile à suggérer, Claude répond un token vide convenu (`-`) et l'UI n'affiche rien.
 - Les prompts vivent dans des fichiers dédiés, pas en dur dans la logique.
