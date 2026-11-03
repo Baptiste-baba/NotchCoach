@@ -69,13 +69,13 @@ final class CallController {
     /// suggestion.
     private func fold(after lastDisplay: CoachDisplay) {
         guard case .error = lastDisplay else {
-            notch.display(.empty)
+            show(.hidden)
             return
         }
         foldTask = Task {
             try? await Task.sleep(for: ConversationCoordinator.defaultSuggestionLifetime)
             guard !Task.isCancelled else { return }
-            notch.display(.empty)
+            show(.hidden)
         }
     }
 
