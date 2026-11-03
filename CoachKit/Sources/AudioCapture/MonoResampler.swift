@@ -4,9 +4,6 @@ import AVFoundation
 /// Un convertisseur par flux continu : il garde son état d'un buffer à l'autre.
 final class MonoResampler {
     private let converter: AVAudioConverter
-    private let outputFormat: AVAudioFormat
-    /// Buffer en attente de conversion, rendu une seule fois au convertisseur.
-    private var pendingInput: AVAudioPCMBuffer?
 
     /// `nil` si ce format ne peut pas être converti.
     init?(from format: AVAudioFormat) {
@@ -22,18 +19,19 @@ final class MonoResampler {
         // Plusieurs canaux sont mélangés, au lieu de ne garder que le premier.
         converter.downmix = true
         self.converter = converter
-        self.outputFormat = outputFormat
     }
 
     /// Échantillons à 16 kHz mono de `buffer`, au format donné à la création.
     func convert(_ buffer: AVAudioPCMBuffer) -> [Float] {
+        let outputFormat = converter.outputFormat
         let ratio = outputFormat.sampleRate / buffer.format.sampleRate
         // Marge pour les échantillons que le filtre du rééchantillonnage gardait du buffer précédent.
         let capacity = AVAudioFrameCount((Double(buffer.frameLength) * ratio).rounded(.up)) + 64
         guard let output = AVAudioPCMBuffer(pcmFormat: outputFormat, frameCapacity: capacity) else { return [] }
-        pendingInput = buffer
+        // Rendu une seule fois au convertisseur.
+        var pendingInput: AVAudioPCMBuffer? = buffer
         var conversionError: NSError?
-        let status = converter.convert(to: output, error: &conversionError) { [self] _, inputStatus in
+        let status = converter.convert(to: output, error: &conversionError) { _, inputStatus in
             guard let input = pendingInput else {
                 // Pas `.endOfStream` : le flux continue au prochain buffer, le convertisseur garde son état.
                 inputStatus.pointee = .noDataNow
