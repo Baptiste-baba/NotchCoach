@@ -82,7 +82,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Protocole `LLMSession` pour pouvoir mocker en test.
 
 **Prompting**
-- `Playbook` : fichier Markdown éditable par l'utilisateur dans `~/Library/Application Support/NotchCoach/playbook.md` (offre, cible, pricing, objections fréquentes et réponses validées). Chargé dans le system prompt au lancement de la session.
+- `Playbook` : fichier Markdown éditable par l'utilisateur dans `~/Library/Application Support/NotchCoach/playbook.md` (offre, cible, pricing, objections fréquentes et réponses validées). Chargé dans le system prompt au lancement de la session : une modification compte à partir du call suivant. S'il n'existe pas, l'app le crée avec ces rubriques vides, sans aucun exemple : Claude pourrait citer un faux prix au prospect. Le menu « Modifier le playbook… » l'ouvre dans l'éditeur par défaut.
 - Format de sortie imposé à Claude : 1 ou 2 suggestions maximum, 20 mots maximum chacune, phrases prêtes à être dites à l'oral, en français. Pas de préambule, pas d'explication.
 - Si rien d'utile à suggérer, Claude répond un token vide convenu (`-`) et l'UI n'affiche rien.
 - Les prompts vivent dans des fichiers dédiés, pas en dur dans la logique.
@@ -206,6 +206,6 @@ Le mode replay est une fonctionnalité de premier ordre, pas un bonus : c'est le
 3. Mode replay + transcription des deux canaux, affichée brute dans la notch.
 4. `TriggerDetector` + `TranscriptBuffer`, testés unitairement.
 5. Branchement complet et mesure de la latence de bout en bout.
-6. Playbook, onboarding des permissions, finitions UI.
+6. Playbook, vraie capture audio (micro et audio système) avec le démarrage et l'arrêt d'un call, onboarding des permissions, finitions UI.
 
 Ne pas passer à l'étape suivante tant que la précédente ne fonctionne pas en replay.
