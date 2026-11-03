@@ -90,7 +90,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 
 **Call**
 - `CallPipeline` : relie, pendant un call, la source audio, la transcription des deux canaux, la conversation, le playbook et la session Claude, et publie ce que la notch affiche. La cible App ne fait que le démarrer, l'arrêter et afficher ce qu'il publie.
-- Un call démarre et s'arrête depuis le menu (« Démarrer un call », « Arrêter le call »). En mode replay, il démarre au lancement de l'app et se termine à la fin du fichier.
+- Un call démarre et s'arrête depuis le menu (« Démarrer un call », « Arrêter le call »). En mode replay, il démarre au lancement de l'app, et « Démarrer un call » rejoue le fichier depuis le début. Il se termine une fois le fichier fini, la dernière réponse de Claude arrivée et la notch repliée, pour que la dernière suggestion ne soit pas perdue.
 - Les modèles de transcription sont chargés au premier call, puis gardés en mémoire pour les suivants.
 
 **NotchUI**
