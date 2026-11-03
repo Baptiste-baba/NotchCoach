@@ -1,3 +1,5 @@
+import AVFoundation
+
 /// Audio d'un vrai call : le micro pour « moi », l'audio du système pour le prospect.
 public actor LiveAudioSource: AudioSource {
     private let mic = MicCapture()
@@ -14,10 +16,13 @@ public actor LiveAudioSource: AudioSource {
 
     /// Démarre les deux captures, avec le même instant zéro.
     public func start() async throws(AudioCaptureError) {
-        fatalError("TODO")
+        let origin = AVAudioTime.seconds(forHostTime: mach_absolute_time())
+        try await systemAudio.start(origin: origin)
+        try await mic.start(origin: origin)
     }
 
     public func stop() async {
-        fatalError("TODO")
+        await mic.stop()
+        await systemAudio.stop()
     }
 }
