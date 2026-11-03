@@ -8,6 +8,9 @@ import Transcription
 /// L'appelant démarre la session avant le coordinateur et l'arrête à la fin du call. Le coordinateur ne la relance
 /// que si elle a abandonné ses redémarrages automatiques, à la phrase suivante du prospect.
 public actor ConversationCoordinator {
+    /// Durée d'affichage maximale d'une suggestion après la fin de sa réponse, ou d'un message d'échec.
+    public static let defaultSuggestionLifetime = Duration.seconds(20)
+
     /// Ce que la notch doit afficher. Un seul consommateur.
     public nonisolated let displays: AsyncStream<CoachDisplay>
 
@@ -37,7 +40,7 @@ public actor ConversationCoordinator {
     private var changeWaiter: CheckedContinuation<Void, Never>?
 
     public init(session: any LLMSession, callStart: ContinuousClock.Instant) {
-        self.init(session: session, callStart: callStart, suggestionLifetime: .seconds(20))
+        self.init(session: session, callStart: callStart, suggestionLifetime: Self.defaultSuggestionLifetime)
     }
 
     /// Pour les tests : durée d'affichage réglable, pour ne pas attendre 20 s.
