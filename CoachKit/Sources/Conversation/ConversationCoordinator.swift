@@ -88,6 +88,12 @@ public actor ConversationCoordinator {
         scheduleHide()
     }
 
+    /// Termine le call sans rien perdre : attend la fin de la réponse en cours et le repli de la notch, puis s'arrête
+    /// comme `stop()`. Pour la fin d'un replay, quand plus aucun segment n'arrivera.
+    public func finish() async {
+        fatalError("TODO")
+    }
+
     /// Arrête le suivi de la session et termine le flux d'affichage.
     public func stop() {
         sessionTasks.forEach { $0.cancel() }
