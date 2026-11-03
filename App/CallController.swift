@@ -43,6 +43,8 @@ final class CallController {
             for await display in pipeline.displays {
                 show(display)
             }
+            // Call terminé, après son dernier affichage : la notch se replie.
+            notch.display(.empty)
         }
         Task {
             await pipeline.run()
