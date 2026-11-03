@@ -7,7 +7,7 @@ private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", cat
 /// Mode replay : lit un fichier stéréo à vitesse réelle à la place d'un vrai call (canal gauche = moi,
 /// canal droit = prospect) et fournit chaque canal en 16 kHz mono Float32, comme la capture réelle.
 /// Une source ne sert qu'une fois : après `stop()` ou la fin du fichier, `start()` n'a plus d'effet.
-public actor ReplayAudioSource {
+public actor ReplayAudioSource: AudioSource {
     /// Taille d'un morceau émis : 4096 échantillons, soit 256 ms.
     static let chunkFrameCount = 4096
 
@@ -30,7 +30,6 @@ public actor ReplayAudioSource {
         (prospectChunks, prospectContinuation) = AsyncStream.makeStream()
     }
 
-    /// Audio d'un canal. Le flux se termine à la fin du fichier ou à l'arrêt.
     public nonisolated func chunks(of speaker: Speaker) -> AsyncStream<AudioChunk> {
         switch speaker {
         case .me: meChunks
