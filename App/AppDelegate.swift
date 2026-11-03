@@ -30,9 +30,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         do {
             try playbookFile.createIfMissing()
         } catch {
-            // Erreurs : couche suivante.
+            showAlert(for: error)
             return
         }
-        NSWorkspace.shared.open(playbookFile.url)
+        // Sans éditeur pour les fichiers Markdown, le fichier est montré dans le Finder.
+        if !NSWorkspace.shared.open(playbookFile.url) {
+            NSWorkspace.shared.activateFileViewerSelecting([playbookFile.url])
+        }
+    }
+
+    private func showAlert(for error: PromptingError) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Impossible d'ouvrir le playbook"
+        alert.informativeText = "\(error.localizedDescription)\n\n\(playbookFile.url.path)"
+        // L'app n'a pas de fenêtre : sans ça, l'alerte resterait derrière celle de l'app active.
+        NSApp.activate()
+        alert.runModal()
     }
 }
