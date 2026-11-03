@@ -40,13 +40,19 @@ final class CallPipeline {
     }
 
     private func run() async {
-        let session: ClaudeSession
+        // Lu à chaque call : une modification du playbook compte dès le call suivant. Inutilisable, il est ignoré
+        // plutôt que de priver le call de suggestions.
+        var playbook = Playbook(markdown: "")
+        var playbookError: PromptingError?
         do {
-            // Lu à chaque call : une modification du playbook compte dès le call suivant.
-            let instructions = BundledPrompt.text(named: "coach-system")
-            let systemPrompt = SystemPrompt.text(instructions: instructions, playbook: try playbookFile.load())
-            session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: systemPrompt))
-            self.session = session
+            playbook = try playbookFile.load()
+        } catch {
+            playbookError = error
+        }
+        let systemPrompt = SystemPrompt.text(instructions: BundledPrompt.text(named: "coach-system"), playbook: playbook)
+        let session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: systemPrompt))
+        self.session = session
+        do {
             for try await state in models.prepare() {
                 show(state)
             }
@@ -69,6 +75,9 @@ final class CallPipeline {
                 show(display)
             }
         })
+        if let playbookError {
+            await coordinator.showError("Call sans playbook. \(playbookError.localizedDescription)")
+        }
         for speaker in Speaker.allCases {
             let segments = ParakeetEngine(speaker: speaker, models: models).transcribe(source.chunks(of: speaker))
             tasks.append(Task {
