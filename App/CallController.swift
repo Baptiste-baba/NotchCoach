@@ -20,8 +20,6 @@ final class CallController {
     /// Gardés d'un call à l'autre : seul le premier call charge les modèles.
     @ObservationIgnored private let models = ParakeetModels()
     @ObservationIgnored private var pipeline: CallPipeline?
-    /// Repli de la notch prévu après l'échec du démarrage d'un call.
-    @ObservationIgnored private var foldTask: Task<Void, Never>?
 
     init(notch: NotchPanelController, playbookFile: PlaybookFile, replayFile: URL?) {
         self.notch = notch
@@ -32,8 +30,6 @@ final class CallController {
     /// Démarre un call : la vraie capture, ou le fichier rejoué depuis le début en mode replay.
     func startCall() {
         guard pipeline == nil else { return }
-        // Le message d'échec du call précédent laisse la place au nouveau call.
-        foldTask?.cancel()
         let source: any AudioSource = if let replayFile { ReplayAudioSource(file: replayFile) } else { LiveAudioSource() }
         let pipeline = CallPipeline(
             source: source,
@@ -43,19 +39,16 @@ final class CallController {
         )
         self.pipeline = pipeline
         isCallActive = true
-        // Une seule tâche : la fin du call, son dernier affichage et le repli de la notch arrivent dans cet ordre.
+        // Une seule tâche : le call n'est terminé pour le menu qu'après son dernier affichage.
         Task {
             async let run: Void = pipeline.run()
-            var lastDisplay = CoachDisplay.hidden
             for await display in pipeline.displays {
-                lastDisplay = display
                 show(display)
             }
             await run
             // Call terminé : le menu propose d'en démarrer un autre.
             self.pipeline = nil
             isCallActive = false
-            fold(after: lastDisplay)
         }
     }
 
@@ -63,20 +56,6 @@ final class CallController {
     func stopCall() {
         guard let pipeline else { return }
         Task { await pipeline.stop() }
-    }
-
-    /// Replie la notch à la fin d'un call. L'échec de son démarrage reste d'abord lisible, aussi longtemps qu'une
-    /// suggestion.
-    private func fold(after lastDisplay: CoachDisplay) {
-        guard case .error = lastDisplay else {
-            show(.hidden)
-            return
-        }
-        foldTask = Task {
-            try? await Task.sleep(for: ConversationCoordinator.defaultSuggestionLifetime)
-            guard !Task.isCancelled else { return }
-            show(.hidden)
-        }
     }
 
     private func show(_ display: CoachDisplay) {

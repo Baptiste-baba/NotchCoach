@@ -8,7 +8,7 @@ import Transcription
 /// session Claude, et publie ce que la notch affiche. Un pipeline ne sert qu'à un call.
 public actor CallPipeline {
     /// Ce que la notch doit afficher, du démarrage à la fin du call. Un seul consommateur. Le flux se termine avec
-    /// le call.
+    /// le call, toujours sur une notch repliée.
     public nonisolated let displays: AsyncStream<CoachDisplay>
 
     private let displaysContinuation: AsyncStream<CoachDisplay>.Continuation
@@ -18,6 +18,8 @@ public actor CallPipeline {
     private let coachInstructions: String
     private var session: ClaudeSession?
     private var coordinator: ConversationCoordinator?
+    /// Affichage de l'échec du démarrage, que `stop()` interrompt.
+    private var startFailureDisplay: Task<Void, Never>?
     private var isStopped = false
 
     /// `models` peut servir d'un call à l'autre : seul le premier les charge. `coachInstructions` : consignes du coach,
@@ -32,9 +34,12 @@ public actor CallPipeline {
 
     /// Déroule le call : lit le playbook, prépare les modèles et lance Claude, puis transcrit la source et suggère
     /// des réponses. Revient à la fin du call : source terminée et dernière suggestion repliée, appel à `stop()`, ou
-    /// démarrage impossible.
+    /// démarrage impossible, une fois son message replié.
     public func run() async {
-        defer { displaysContinuation.finish() }
+        defer {
+            displaysContinuation.yield(.hidden)
+            displaysContinuation.finish()
+        }
         // Lu à chaque call : une modification du playbook compte dès le call suivant. Inutilisable, il est ignoré
         // plutôt que de priver le call de suggestions.
         var playbook = Playbook(markdown: "")
@@ -59,7 +64,7 @@ public actor CallPipeline {
         } catch {
             // Un arrêt pendant le lancement de Claude le fait échouer : ce n'est pas une erreur à montrer.
             guard !isStopped else { return }
-            displaysContinuation.yield(.error(error.localizedDescription))
+            await showStartFailure(error)
             return
         }
         guard !isStopped else { return }
@@ -88,9 +93,9 @@ public actor CallPipeline {
         do {
             try await source.start()
         } catch {
-            displaysContinuation.yield(.error(error.localizedDescription))
-            // Sans audio, pas de call : la source, la conversation et Claude s'arrêtent.
-            await stop()
+            // Sans audio, pas de call : la source s'arrête, et le call se termine une fois le message d'échec replié.
+            await source.stop()
+            await coordinator.showError(error.localizedDescription)
         }
         // Les flux de transcription se terminent avec la source : fin du fichier rejoué, ou arrêt.
         for transcription in transcriptions {
@@ -106,9 +111,20 @@ public actor CallPipeline {
     public func stop() async {
         guard !isStopped else { return }
         isStopped = true
+        startFailureDisplay?.cancel()
         await source.stop()
         await coordinator?.stop()
         await session?.stop()
+    }
+
+    /// Démarrage impossible : le message reste lisible aussi longtemps qu'une suggestion, sauf arrêt.
+    private func showStartFailure(_ error: any Error) async {
+        displaysContinuation.yield(.error(error.localizedDescription))
+        let display = Task {
+            _ = try? await Task.sleep(for: ConversationCoordinator.defaultSuggestionLifetime)
+        }
+        startFailureDisplay = display
+        await display.value
     }
 
     private static func message(for state: ModelLoadState) -> String {
