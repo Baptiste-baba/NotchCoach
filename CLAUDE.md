@@ -55,6 +55,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - `MicCapture` : `AVAudioEngine`, c'est la voix de l'utilisateur.
 - Les deux sorties sont rééchantillonnées en 16 kHz mono Float32 avant de sortir du module.
 - La séparation des canaux fait office de diarisation : `.me` = micro, `.prospect` = audio système. Pas de modèle de diarisation.
+- `LiveAudioSource` réunit les deux captures pendant un vrai call, `ReplayAudioSource` lit un fichier à leur place. Les deux suivent le protocole `AudioSource`.
 
 **Transcription**
 - Protocole `TranscriptionEngine` : prend un flux audio, émet des `TranscriptSegment`.
@@ -86,6 +87,11 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Format de sortie imposé à Claude : 1 ou 2 suggestions maximum, 20 mots maximum chacune, phrases prêtes à être dites à l'oral, en français. Pas de préambule, pas d'explication.
 - Si rien d'utile à suggérer, Claude répond un token vide convenu (`-`) et l'UI n'affiche rien.
 - Les prompts vivent dans des fichiers dédiés, pas en dur dans la logique.
+
+**Call**
+- `CallPipeline` : relie, pendant un call, la source audio, la transcription des deux canaux, la conversation, le playbook et la session Claude, et publie ce que la notch affiche. La cible App ne fait que le démarrer, l'arrêter et afficher ce qu'il publie.
+- Un call démarre et s'arrête depuis le menu (« Démarrer un call », « Arrêter le call »). En mode replay, il démarre au lancement de l'app et se termine à la fin du fichier.
+- Les modèles de transcription sont chargés au premier call, puis gardés en mémoire pour les suivants.
 
 **NotchUI**
 - `NSPanel` avec `.nonactivatingPanel` : il ne prend jamais le focus à l'app de visio.
@@ -156,6 +162,7 @@ NotchCoach/
 │   │   ├── Conversation/
 │   │   ├── ClaudeSession/
 │   │   ├── Prompting/
+│   │   ├── Call/
 │   │   └── NotchUI/
 │   └── Tests/
 └── Fixtures/             # fichiers audio de calls de test, et le script qui génère le call synthétique
