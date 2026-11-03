@@ -18,15 +18,19 @@ public actor ConversationCoordinator {
     private let session: any LLMSession
     /// Instant zéro du call, le même que celui des segments : les mesures de latence s'y rapportent.
     private let callStart: ContinuousClock.Instant
-    /// Durée d'affichage maximale d'une suggestion après la fin de sa réponse, ou d'un message d'échec.
+    /// `defaultSuggestionLifetime`, sauf dans les tests.
     private let suggestionLifetime: Duration
 
     private var detector = TriggerDetector()
     private var buffer = TranscriptBuffer()
-    private var assembler = SuggestionAssembler()
+    private var assembler = SuggestionAssembler() {
+        didSet { notifyChange() }
+    }
     private var latency = LatencyTracker()
     private var sessionTasks: [Task<Void, Never>] = []
-    private var hideTask: Task<Void, Never>?
+    private var hideTask: Task<Void, Never>? {
+        didSet { notifyChange() }
+    }
     /// Ce que la notch affiche en ce moment.
     private var current = CoachDisplay.hidden
     /// Dernier état connu de la session : l'appelant l'a démarrée avant de créer le coordinateur.
@@ -35,8 +39,10 @@ public actor ConversationCoordinator {
     private var needsFullResend = false
     /// De la demande au premier mot affiché, pour Instruments.
     private var suggestionInterval: (requestID: Int, state: OSSignpostIntervalState)?
-    private var isStopped = false
-    /// `finish()` attend ici le prochain changement : réponse, état de Claude, repli de la notch ou arrêt.
+    private var isStopped = false {
+        didSet { notifyChange() }
+    }
+    /// `finish()` attend ici que change ce qu'il surveille : la réponse en cours, le repli prévu ou l'arrêt.
     private var changeWaiter: CheckedContinuation<Void, Never>?
 
     public init(session: any LLMSession, callStart: ContinuousClock.Instant) {
@@ -108,7 +114,6 @@ public actor ConversationCoordinator {
     /// Arrête le suivi de la session et termine le flux d'affichage.
     public func stop() {
         isStopped = true
-        defer { notifyChange() }
         sessionTasks.forEach { $0.cancel() }
         sessionTasks = []
         hideTask?.cancel()
@@ -118,7 +123,6 @@ public actor ConversationCoordinator {
     }
 
     private func handle(_ event: LLMEvent) {
-        defer { notifyChange() }
         switch event {
         case .delta(let requestID, let text):
             // L'ancienne suggestion reste affichée jusqu'au premier mot montrable de la nouvelle.
@@ -144,7 +148,6 @@ public actor ConversationCoordinator {
     }
 
     private func handle(_ state: SessionState) {
-        defer { notifyChange() }
         let wasRunning = sessionState == .running
         sessionState = state
         switch state {
@@ -206,7 +209,6 @@ public actor ConversationCoordinator {
             try? await Task.sleep(for: lifetime)
             guard !Task.isCancelled else { return }
             show(.hidden)
-            notifyChange()
         }
     }
 
