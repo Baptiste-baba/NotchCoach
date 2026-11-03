@@ -43,7 +43,7 @@ public struct TranscriptBuffer {
         }
     }
 
-    // Étiquettes provisoires : elles rejoindront les fichiers de prompt avec le playbook à l'étape 6.
+    // Étiquettes de la transcription, décrites par le prompt du coach.
     private static func line(for segment: TranscriptSegment) -> String {
         let name = switch segment.speaker {
         case .me: "Moi"
