@@ -7,7 +7,7 @@ let package = Package(
     platforms: [.macOS(.v15)],
     products: [
         // Produit unique lié par l'app : un nouveau module s'ajoute ici, sans toucher au projet Xcode.
-        .library(name: "CoachKit", targets: ["NotchUI", "ClaudeSession", "AudioCapture", "Transcription", "Conversation"]),
+        .library(name: "CoachKit", targets: ["NotchUI", "ClaudeSession", "AudioCapture", "Transcription", "Conversation", "Prompting"]),
     ],
     dependencies: [
         // Version exacte. `traits: []` : transcription et détection de voix seulement, sans synthèse vocale,
@@ -23,6 +23,7 @@ let package = Package(
             dependencies: ["AudioCapture", .product(name: "FluidAudio", package: "FluidAudio")]
         ),
         .target(name: "Conversation", dependencies: ["AudioCapture", "Transcription", "ClaudeSession"]),
+        .target(name: "Prompting"),
         .testTarget(name: "NotchUITests", dependencies: ["NotchUI"]),
         .testTarget(name: "ClaudeSessionTests", dependencies: ["ClaudeSession"]),
         .testTarget(name: "AudioCaptureTests", dependencies: ["AudioCapture"]),
@@ -34,5 +35,6 @@ let package = Package(
             name: "ConversationTests",
             dependencies: ["Conversation", "AudioCapture", "Transcription", "ClaudeSession"]
         ),
+        .testTarget(name: "PromptingTests", dependencies: ["Prompting"]),
     ]
 )
