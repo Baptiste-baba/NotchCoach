@@ -159,6 +159,33 @@ struct ConversationCoordinatorTests {
         #expect(await fixture.nextDisplay() == .error("Claude n'a pas pu répondre."))
     }
 
+    // MARK: Erreurs de l'appelant
+
+    @Test func callerErrorIsShownInRedAndFolds() async {
+        var fixture = await Fixture(suggestionLifetime: .milliseconds(50))
+
+        await fixture.coordinator.showError("Call sans playbook.")
+
+        #expect(await fixture.nextDisplay() == .error("Call sans playbook."))
+        #expect(await fixture.nextDisplay() == .hidden)
+    }
+
+    @Test func callerErrorGivesWayToTheFirstSuggestion() async throws {
+        var fixture = await Fixture(suggestionLifetime: .milliseconds(500))
+        await fixture.coordinator.showError("Call sans playbook.")
+        #expect(await fixture.nextDisplay() == .error("Call sans playbook."))
+
+        await fixture.coordinator.receive(segment(.prospect, "C'est trop cher.", startingAt: 0))
+        fixture.session.emit(.delta(requestID: 1, text: "Je compr"))
+        #expect(await fixture.nextDisplay() == .suggestion("Je compr"))
+
+        // Le repli prévu pour le message d'erreur aurait eu lieu pendant cette attente.
+        try await Task.sleep(for: .milliseconds(700))
+        fixture.session.emit(.delta(requestID: 1, text: "ends."))
+
+        #expect(await fixture.nextDisplay() == .suggestion("Je comprends."))
+    }
+
     // MARK: Redémarrages de Claude
 
     @Test func showsANoticeWhileClaudeRestarts() async {
