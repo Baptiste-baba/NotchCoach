@@ -27,6 +27,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Ouvre le playbook dans l'éditeur par défaut, après l'avoir créé s'il n'existe pas encore.
     func editPlaybook() {
-        fatalError("TODO")
+        do {
+            try playbookFile.createIfMissing()
+        } catch {
+            // Erreurs : couche suivante.
+            return
+        }
+        NSWorkspace.shared.open(playbookFile.url)
     }
 }
