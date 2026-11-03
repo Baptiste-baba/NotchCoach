@@ -6,6 +6,10 @@ import SwiftUI
     var body: some Scene {
         // Seul moyen de quitter : l'app n'a ni icône dans le Dock ni barre de menus (LSUIElement).
         MenuBarExtra("NotchCoach", systemImage: "waveform") {
+            Button("Modifier le playbook…") {
+                appDelegate.editPlaybook()
+            }
+            Divider()
             #if DEBUG
             Button("Tester Claude") {
                 appDelegate.claudeDebugProbe.run()

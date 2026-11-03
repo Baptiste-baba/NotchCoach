@@ -3,24 +3,28 @@ import ClaudeSession
 import Conversation
 import Foundation
 import NotchUI
+import Prompting
 import Transcription
 
 /// Relie, pendant un call, la source audio, la transcription des deux canaux, la conversation et la session Claude,
 /// et affiche les suggestions dans la notch (étape 5).
 final class CallPipeline {
     private let source: ReplayAudioSource
+    private let playbookFile: PlaybookFile
     private let models = ParakeetModels()
-    private let session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: BundledPrompt.text(named: "coach-system")))
     private let notch: NotchPanelController
+    private var session: ClaudeSession?
     private var coordinator: ConversationCoordinator?
     private var tasks: [Task<Void, Never>] = []
 
-    init(replayFile: URL, notch: NotchPanelController) {
+    init(replayFile: URL, playbookFile: PlaybookFile, notch: NotchPanelController) {
         source = ReplayAudioSource(file: replayFile)
+        self.playbookFile = playbookFile
         self.notch = notch
     }
 
-    /// Prépare les modèles et lance Claude, puis démarre le replay : les suggestions s'affichent dans la notch.
+    /// Lit le playbook, prépare les modèles et lance Claude, puis démarre le replay : les suggestions s'affichent
+    /// dans la notch.
     func start() {
         tasks.append(Task { await run() })
     }
@@ -31,12 +35,18 @@ final class CallPipeline {
         Task { [source, coordinator, session] in
             await source.stop()
             await coordinator?.stop()
-            await session.stop()
+            await session?.stop()
         }
     }
 
     private func run() async {
+        let session: ClaudeSession
         do {
+            // Lu à chaque call : une modification du playbook compte dès le call suivant.
+            let instructions = BundledPrompt.text(named: "coach-system")
+            let systemPrompt = SystemPrompt.text(instructions: instructions, playbook: try playbookFile.load())
+            session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: systemPrompt))
+            self.session = session
             for try await state in models.prepare() {
                 show(state)
             }
