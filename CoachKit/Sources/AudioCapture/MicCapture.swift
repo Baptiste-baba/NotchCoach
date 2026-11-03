@@ -6,6 +6,8 @@ actor MicCapture {
     nonisolated let chunks: AsyncStream<AudioChunk>
     private let continuation: AsyncStream<AudioChunk>.Continuation
     private var engine: AVAudioEngine?
+    /// Une capture ne sert qu'une fois : après `stop()`, `start()` n'a plus d'effet.
+    private var isStopped = false
 
     init() {
         (chunks, continuation) = AsyncStream.makeStream()
@@ -13,7 +15,7 @@ actor MicCapture {
 
     /// Démarre la capture. `origin` : instant zéro du call, en secondes de l'horloge hôte.
     func start(origin: TimeInterval) throws(AudioCaptureError) {
-        guard engine == nil else { return }
+        guard engine == nil, !isStopped else { return }
         let engine = AVAudioEngine()
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
@@ -36,6 +38,7 @@ actor MicCapture {
     }
 
     func stop() {
+        isStopped = true
         if let engine {
             engine.inputNode.removeTap(onBus: 0)
             engine.stop()

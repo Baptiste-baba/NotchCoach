@@ -10,6 +10,8 @@ actor SystemAudioCapture {
     private var stream: SCStream?
     /// Gardée ici : le flux ne retient pas ses sorties.
     private var output: AudioOutput?
+    /// Une capture ne sert qu'une fois : après `stop()`, `start()` n'a plus d'effet, même arrivé pendant le démarrage.
+    private var isStopped = false
 
     init() {
         (chunks, continuation) = AsyncStream.makeStream()
@@ -17,8 +19,9 @@ actor SystemAudioCapture {
 
     /// Démarre la capture. `origin` : instant zéro du call, en secondes de l'horloge hôte.
     func start(origin: TimeInterval) async throws(AudioCaptureError) {
-        guard stream == nil else { return }
+        guard stream == nil, !isStopped else { return }
         guard let content = try? await SCShareableContent.current, let display = content.displays.first else { return }
+        guard !isStopped else { return }
         let configuration = SCStreamConfiguration()
         configuration.capturesAudio = true
         configuration.excludesCurrentProcessAudio = true
@@ -43,11 +46,16 @@ actor SystemAudioCapture {
         } catch {
             return
         }
+        guard !isStopped else {
+            try? await stream.stopCapture()
+            return
+        }
         self.stream = stream
         self.output = output
     }
 
     func stop() async {
+        isStopped = true
         try? await stream?.stopCapture()
         stream = nil
         output = nil
