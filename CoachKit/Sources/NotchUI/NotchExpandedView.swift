@@ -8,7 +8,9 @@ struct NotchExpandedView: View {
 
     var body: some View {
         ScrollView(.vertical) {
-            VStack(spacing: 0) {
+            // Mise en page des seules lignes visibles : un long call en compte une centaine, et la dernière change à
+            // chaque mot.
+            LazyVStack(spacing: 0) {
                 ForEach(content.lines) { line in
                     NotchExpandedText(text: line.text, color: line.isError ? .red : .white)
                 }
