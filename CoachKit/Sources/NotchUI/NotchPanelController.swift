@@ -40,7 +40,7 @@ public final class NotchPanelController {
         }
     }
 
-    /// Change le contenu affiché : `.empty` replie le panel, `.text` et `.error` le déplient sous la notch.
+    /// Change le contenu affiché : vide, il replie le panel ; sinon, il le déplie sous la notch.
     public func display(_ content: NotchContent) {
         self.content = content
         reposition()
@@ -67,17 +67,16 @@ public final class NotchPanelController {
         }
         let metrics = ScreenMetrics(screen: screen)
         let placement: NotchPlacement
-        switch content {
-        case .empty:
-            placement = layout.placement(for: metrics)
-        case .text(let text), .error(let text):
+        if let text = content.notice ?? content.lines.last?.text {
             let width = layout.expandedWidth(for: metrics)
             placement = layout.expandedPlacement(for: metrics, contentHeight: height(of: text, width: width))
+        } else {
+            placement = layout.placement(for: metrics)
         }
         logger.debug("Panel \(String(describing: placement.style), privacy: .public) en \(placement.frame.debugDescription, privacy: .public)")
         // Replié, il laisse passer les clics vers la barre de menus ; déplié, il reçoit le défilement du trackpad.
         // Il ne devient jamais la fenêtre active pour autant.
-        panel.ignoresMouseEvents = content == .empty
+        panel.ignoresMouseEvents = content.isEmpty
         hostingView.rootView = NotchView(
             style: placement.style,
             contentTopInset: placement.contentTopInset,

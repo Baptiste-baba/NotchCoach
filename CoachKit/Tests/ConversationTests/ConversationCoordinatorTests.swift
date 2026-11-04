@@ -4,11 +4,29 @@ import Testing
 import Transcription
 @testable import Conversation
 
+/// Les affichages du coordinateur, une entrée à la fois, tels que `CallDisplay` les traduit en attendant l'historique
+/// du call.
+private extension CallDisplay {
+    static let hidden = CallDisplay()
+
+    static func suggestion(_ text: String) -> CallDisplay {
+        CallDisplay(entries: [Entry(id: 0, kind: .suggestion, text: text)])
+    }
+
+    static func notice(_ text: String) -> CallDisplay {
+        CallDisplay(notice: text)
+    }
+
+    static func error(_ text: String) -> CallDisplay {
+        CallDisplay(entries: [Entry(id: 0, kind: .failure, text: text)])
+    }
+}
+
 /// Coordinateur branché sur une fausse session Claude, et la suite de ce qu'il fait afficher.
 private struct Fixture {
     let session = MockLLMSession()
     let coordinator: ConversationCoordinator
-    private var displays: AsyncStream<CoachDisplay>.Iterator
+    private var displays: AsyncStream<CallDisplay>.Iterator
 
     /// Par défaut, les suggestions ne se replient pas pendant le test.
     init(suggestionLifetime: Duration = .seconds(3600)) async {
@@ -18,7 +36,7 @@ private struct Fixture {
     }
 
     /// Prochain affichage décidé par le coordinateur, `nil` une fois arrêté. Attend s'il n'y en a pas encore.
-    mutating func nextDisplay() async -> CoachDisplay? {
+    mutating func nextDisplay() async -> CallDisplay? {
         await displays.next()
     }
 }
@@ -29,8 +47,8 @@ private func settle() async throws {
     try await Task.sleep(for: .milliseconds(50))
 }
 
-private let restartNotice = CoachDisplay.notice("Claude redémarre…")
-private let unavailableError = CoachDisplay.error("Claude est indisponible. Nouvel essai à la prochaine phrase du prospect.")
+private let restartNotice = CallDisplay.notice("Claude redémarre…")
+private let unavailableError = CallDisplay.error("Claude est indisponible. Nouvel essai à la prochaine phrase du prospect.")
 
 @Suite(.timeLimit(.minutes(1)))
 struct ConversationCoordinatorTests {

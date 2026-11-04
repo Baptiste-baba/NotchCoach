@@ -58,14 +58,10 @@ final class CallController {
         Task { await pipeline.stop() }
     }
 
-    private func show(_ display: CoachDisplay) {
-        switch display {
-        case .hidden:
-            notch.display(.empty)
-        case .suggestion(let text), .notice(let text):
-            notch.display(.text(text))
-        case .error(let text):
-            notch.display(.error(text))
-        }
+    private func show(_ display: CallDisplay) {
+        notch.display(NotchContent(
+            lines: display.entries.map { NotchContent.Line(id: $0.id, text: $0.text, isError: $0.kind == .failure) },
+            notice: display.notice
+        ))
     }
 }

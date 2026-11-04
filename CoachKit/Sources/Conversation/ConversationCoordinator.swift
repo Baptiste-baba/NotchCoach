@@ -12,9 +12,9 @@ public actor ConversationCoordinator {
     public static let defaultSuggestionLifetime = Duration.seconds(20)
 
     /// Ce que la notch doit afficher. Un seul consommateur.
-    public nonisolated let displays: AsyncStream<CoachDisplay>
+    public nonisolated let displays: AsyncStream<CallDisplay>
 
-    private let displaysContinuation: AsyncStream<CoachDisplay>.Continuation
+    private let displaysContinuation: AsyncStream<CallDisplay>.Continuation
     private let session: any LLMSession
     /// Instant zéro du call, le même que celui des segments : les mesures de latence s'y rapportent.
     private let callStart: ContinuousClock.Instant
@@ -199,7 +199,7 @@ public actor ConversationCoordinator {
         hideTask = nil
         guard display != current else { return }
         current = display
-        displaysContinuation.yield(display)
+        displaysContinuation.yield(CallDisplay(display))
     }
 
     private func scheduleHide() {

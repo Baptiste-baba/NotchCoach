@@ -9,9 +9,9 @@ import Transcription
 public actor CallPipeline {
     /// Ce que la notch doit afficher, du démarrage à la fin du call. Un seul consommateur. Le flux se termine avec
     /// le call, toujours sur une notch repliée.
-    public nonisolated let displays: AsyncStream<CoachDisplay>
+    public nonisolated let displays: AsyncStream<CallDisplay>
 
-    private let displaysContinuation: AsyncStream<CoachDisplay>.Continuation
+    private let displaysContinuation: AsyncStream<CallDisplay>.Continuation
     private let source: any AudioSource
     private let models: ParakeetModels
     private let playbookFile: PlaybookFile
@@ -37,7 +37,7 @@ public actor CallPipeline {
     /// démarrage impossible, une fois son message replié.
     public func run() async {
         defer {
-            displaysContinuation.yield(.hidden)
+            displaysContinuation.yield(CallDisplay())
             displaysContinuation.finish()
         }
         // Lu à chaque call : une modification du playbook compte dès le call suivant. Inutilisable, il est ignoré
@@ -55,11 +55,11 @@ public actor CallPipeline {
         do {
             for try await state in models.prepare() {
                 guard !isStopped else { return }
-                displaysContinuation.yield(.notice(Self.message(for: state)))
+                displaysContinuation.yield(CallDisplay(notice: Self.message(for: state)))
             }
             guard !isStopped else { return }
             // Le process `claude` est lancé avant l'audio : il est déjà chaud à la première suggestion.
-            displaysContinuation.yield(.notice("Lancement de Claude…"))
+            displaysContinuation.yield(CallDisplay(notice: "Lancement de Claude…"))
             try await session.start()
         } catch {
             // Un arrêt pendant le lancement de Claude le fait échouer : ce n'est pas une erreur à montrer.
@@ -68,7 +68,7 @@ public actor CallPipeline {
             return
         }
         guard !isStopped else { return }
-        displaysContinuation.yield(.hidden)
+        displaysContinuation.yield(CallDisplay())
 
         // Instant zéro du call, pris juste avant la source : celui des segments, auquel se rapporte la latence.
         let coordinator = ConversationCoordinator(session: session, callStart: .now)
@@ -126,7 +126,7 @@ public actor CallPipeline {
 
     /// Démarrage impossible : le message reste lisible aussi longtemps qu'une suggestion, sauf arrêt.
     private func showStartFailure(_ error: any Error) async {
-        displaysContinuation.yield(.error(error.localizedDescription))
+        displaysContinuation.yield(CallDisplay(entries: [.init(id: 0, kind: .failure, text: error.localizedDescription)]))
         let display = Task {
             _ = try? await Task.sleep(for: ConversationCoordinator.defaultSuggestionLifetime)
         }

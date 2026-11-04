@@ -27,13 +27,13 @@ final class ClaudeDebugProbe {
         do {
             try await session.start()
         } catch {
-            notch.display(.text("Lancement de Claude impossible : \(error.localizedDescription)"))
+            show("Lancement de Claude impossible : \(error.localizedDescription)")
             return
         }
         response = ""
         timeToFirstToken = nil
         sentAt = .now
-        notch.display(.text("…"))
+        show("…")
         let request = LLMRequest(id: nextRequestID, prompt: BundledPrompt.text(named: "claude-test-user"))
         nextRequestID += 1
         await session.send(request)
@@ -58,9 +58,9 @@ final class ClaudeDebugProbe {
     private func handle(_ state: SessionState) {
         switch state {
         case .restarting(let attempt):
-            notch.display(.text("Claude s'est arrêté, redémarrage (tentative \(attempt))…"))
+            show("Claude s'est arrêté, redémarrage (tentative \(attempt))…")
         case .failed(let message):
-            notch.display(.text(message))
+            show(message)
         case .running, .stopped:
             break
         }
@@ -73,14 +73,19 @@ final class ClaudeDebugProbe {
                 timeToFirstToken = .now - sentAt
             }
             response += text
-            notch.display(.text(response))
+            show(response)
         case .finished:
             guard let timeToFirstToken else { return }
             let milliseconds = Int(timeToFirstToken / .milliseconds(1))
-            notch.display(.text("\(response)\n\npremier token : \(milliseconds) ms"))
+            show("\(response)\n\npremier token : \(milliseconds) ms")
         case .failed(_, let message):
-            notch.display(.text("Échec : \(message)"))
+            show("Échec : \(message)")
         }
+    }
+
+    /// Montre une ligne dans la notch dépliée.
+    private func show(_ text: String) {
+        notch.display(NotchContent(lines: [NotchContent.Line(id: 0, text: text)]))
     }
 }
 #endif
