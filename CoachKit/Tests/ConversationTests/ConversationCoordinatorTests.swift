@@ -157,6 +157,21 @@ struct ConversationCoordinatorTests {
         ))
     }
 
+    @Test func sameFailureAgainPublishesNothing() async throws {
+        var fixture = await Fixture()
+        await fixture.coordinator.receive(segment(.prospect, "C'est trop cher.", startingAt: 0))
+        fixture.session.emit(.failed(requestID: 1, message: "Overloaded"))
+        #expect(await fixture.nextDisplay() == display(.failure("Claude n'a pas pu répondre : Overloaded")))
+
+        await fixture.coordinator.receive(segment(.prospect, "Et le délai ?", startingAt: 10))
+        fixture.session.emit(.failed(requestID: 2, message: "Overloaded"))
+        try await settle()
+        await fixture.coordinator.stop()
+
+        // L'historique n'a pas changé : rien n'est republié avant la fin du call.
+        #expect(await fixture.nextDisplay() == nil)
+    }
+
     @Test func failedAnswerWithoutReason() async {
         var fixture = await Fixture()
         await fixture.coordinator.receive(segment(.prospect, "C'est trop cher.", startingAt: 0))
