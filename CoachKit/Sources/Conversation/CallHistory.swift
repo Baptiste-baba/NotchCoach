@@ -17,8 +17,12 @@ struct CallHistory {
         append(.suggestion, text)
     }
 
-    /// Ajoute un échec en bas de l'historique.
+    /// Ajoute un échec en bas de l'historique. Le même échec répété à la suite (limite d'usage atteinte à chaque
+    /// réponse, par exemple) n'est gardé qu'une fois : il repousserait les suggestions hors de vue.
     mutating func addFailure(_ text: String) {
+        if let last = entries.last, last.kind == .failure, last.text == text {
+            return
+        }
         append(.failure, text)
     }
 
