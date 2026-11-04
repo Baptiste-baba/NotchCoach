@@ -138,4 +138,13 @@ struct ReplayAudioSourceTests {
 
         #expect(await me.flatMap(\.samples).count == 9_600)
     }
+
+    @Test func reportsNoFailure() async throws {
+        let source = ReplayAudioSource(file: try files.wav(frameCount: 9_600, channelValues: [0.1, 0.2]))
+
+        // Le flux se termine aussitôt : un call rejoué n'attend jamais de coupure.
+        for await failure in source.failures {
+            Issue.record("Coupure inattendue : \(failure)")
+        }
+    }
 }
