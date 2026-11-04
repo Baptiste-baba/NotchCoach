@@ -67,6 +67,7 @@ public final class NotchPanelController {
         }
         let metrics = ScreenMetrics(screen: screen)
         let placement: NotchPlacement
+        // Déplié, le panel prend la hauteur de la dernière ligne : les précédentes sont au-dessus, en faisant défiler.
         if let text = content.notice ?? content.lines.last?.text {
             let width = layout.expandedWidth(for: metrics)
             placement = layout.expandedPlacement(for: metrics, contentHeight: height(of: text, width: width))

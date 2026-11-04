@@ -1,18 +1,33 @@
 import SwiftUI
 
-/// Contenu de l'état déplié : texte affiché sous la notch. Le panel prend la hauteur du texte jusqu'à un plafond ;
-/// au-delà, le texte défile.
+/// Contenu de l'état déplié : l'historique du call, puis le message passager. Le panel prend la hauteur de la dernière
+/// ligne, jusqu'à un plafond : les précédentes sont au-dessus, en faisant défiler vers le haut.
 struct NotchExpandedView: View {
-    var text: String
-    var color: Color
+    var content: NotchContent
+    @State private var position = ScrollPosition(edge: .bottom)
 
     var body: some View {
         ScrollView(.vertical) {
-            NotchExpandedText(text: text, color: color)
+            VStack(spacing: 0) {
+                ForEach(content.lines) { line in
+                    NotchExpandedText(text: line.text, color: line.isError ? .red : .white)
+                }
+                if let notice = content.notice {
+                    NotchExpandedText(text: notice, color: .white.opacity(0.6))
+                }
+            }
         }
-        // Suit la fin du texte pendant qu'il s'écrit.
+        .scrollPosition($position)
+        // Suit la fin de la dernière ligne pendant qu'elle s'écrit.
         .defaultScrollAnchor(.bottom)
         .defaultScrollAnchor(.bottom, for: .sizeChanges)
+        // Une nouvelle ligne ramène en bas, même après avoir remonté l'historique.
+        .onChange(of: content.lines.last?.id) {
+            position.scrollTo(edge: .bottom)
+        }
+        .onChange(of: content.notice) {
+            position.scrollTo(edge: .bottom)
+        }
     }
 }
 

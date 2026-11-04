@@ -9,8 +9,8 @@ struct NotchView: View {
     var body: some View {
         ZStack(alignment: .top) {
             background
-            if let expandedText {
-                NotchExpandedView(text: expandedText.text, color: expandedText.color)
+            if !content.isEmpty {
+                NotchExpandedView(content: content)
                     .padding(.top, contentTopInset)
             }
         }
@@ -35,14 +35,5 @@ struct NotchView: View {
             RoundedRectangle(cornerRadius: 18)
                 .fill(.black)
         }
-    }
-
-    /// Texte de l'état déplié et sa couleur : le message passager, sinon la dernière ligne, en rouge pour une erreur.
-    private var expandedText: (text: String, color: Color)? {
-        if let notice = content.notice {
-            return (notice, .white)
-        }
-        guard let line = content.lines.last else { return nil }
-        return (line.text, line.isError ? .red : .white)
     }
 }
