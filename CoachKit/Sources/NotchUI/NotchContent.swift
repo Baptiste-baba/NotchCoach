@@ -7,3 +7,20 @@ public enum NotchContent: Equatable, Sendable {
     /// Message d'erreur affiché sous la notch, en rouge, panel déplié.
     case error(String)
 }
+
+extension NotchContent {
+    /// Une ligne de l'historique affiché sous la notch.
+    public struct Line: Equatable, Sendable, Identifiable {
+        /// Stable pendant que la ligne s'écrit : la notch suit chaque ligne d'un affichage à l'autre.
+        public let id: Int
+        public var text: String
+        /// Affichée en rouge.
+        public var isError: Bool
+
+        public init(id: Int, text: String, isError: Bool = false) {
+            self.id = id
+            self.text = text
+            self.isError = isError
+        }
+    }
+}
