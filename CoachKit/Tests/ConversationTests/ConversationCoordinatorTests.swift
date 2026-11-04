@@ -290,13 +290,74 @@ struct ConversationCoordinatorTests {
         ])
     }
 
-    // MARK: Arrêt
+    // MARK: Fin du call
 
     @Test func stopEndsTheDisplays() async {
         var fixture = await Fixture()
 
         await fixture.coordinator.stop()
 
+        #expect(await fixture.nextDisplay() == nil)
+    }
+
+    @Test func noRequestAfterTheStop() async {
+        let fixture = await Fixture()
+        fixture.session.emit(.failed(message: "Claude n'a pas pu redémarrer"))
+        await fixture.coordinator.stop()
+
+        await fixture.coordinator.receive(segment(.prospect, "C'est trop cher.", startingAt: 0))
+
+        // Ni demande, ni relance de Claude une fois le call fini.
+        #expect(await fixture.session.requests.isEmpty)
+        #expect(await fixture.session.startCount == 0)
+    }
+
+    @Test func finishWaitsForTheLastSuggestionAndItsFold() async {
+        var fixture = await Fixture(suggestionLifetime: .milliseconds(50))
+        await fixture.coordinator.receive(segment(.prospect, "C'est trop cher.", startingAt: 0))
+
+        let finishing = Task { [coordinator = fixture.coordinator] in await coordinator.finish() }
+        fixture.session.emit(.delta(requestID: 1, text: "Je comprends."))
+        fixture.session.emit(.finished(requestID: 1))
+
+        // Rien n'est perdu : la réponse arrive, se replie, puis le call se termine.
+        #expect(await fixture.nextDisplay() == .suggestion("Je comprends."))
+        #expect(await fixture.nextDisplay() == .hidden)
+        #expect(await fixture.nextDisplay() == nil)
+        await finishing.value
+    }
+
+    @Test func finishWithNothingPendingStopsAtOnce() async {
+        var fixture = await Fixture()
+
+        await fixture.coordinator.finish()
+
+        #expect(await fixture.nextDisplay() == nil)
+    }
+
+    @Test func finishDoesNotWaitForAFoldAfterADashAnswer() async {
+        // Sans repli prévu, une attente de la durée d'affichage dépasserait la limite de temps du test.
+        var fixture = await Fixture()
+        await fixture.coordinator.receive(segment(.prospect, "Merci.", startingAt: 0))
+
+        let finishing = Task { [coordinator = fixture.coordinator] in await coordinator.finish() }
+        fixture.session.emit(.delta(requestID: 1, text: "-"))
+        fixture.session.emit(.finished(requestID: 1))
+
+        #expect(await fixture.nextDisplay() == nil)
+        await finishing.value
+    }
+
+    @Test func stopEndsAWaitingFinish() async throws {
+        var fixture = await Fixture()
+        await fixture.coordinator.receive(segment(.prospect, "C'est trop cher.", startingAt: 0))
+        let finishing = Task { [coordinator = fixture.coordinator] in await coordinator.finish() }
+        try await settle()
+
+        // La réponse n'arrive jamais : sans arrêt, la fin du call l'attendrait.
+        await fixture.coordinator.stop()
+
+        await finishing.value
         #expect(await fixture.nextDisplay() == nil)
     }
 }

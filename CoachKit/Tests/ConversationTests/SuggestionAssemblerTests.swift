@@ -73,6 +73,22 @@ struct SuggestionAssemblerTests {
         #expect(assembler.finish(requestID: 1) == nil)
     }
 
+    @Test func isAnsweringFromTheRequestToTheEndOfItsAnswer() {
+        var assembler = SuggestionAssembler()
+        #expect(!assembler.isAnswering)
+
+        assembler.start(requestID: 1)
+        #expect(assembler.isAnswering)
+        _ = assembler.append("Oui.", requestID: 1)
+        #expect(assembler.isAnswering)
+        _ = assembler.finish(requestID: 1)
+        #expect(!assembler.isAnswering)
+
+        assembler.start(requestID: 2)
+        _ = assembler.fail(requestID: 2)
+        #expect(!assembler.isAnswering)
+    }
+
     @Test func failureEndsTheCurrentAnswer() {
         var assembler = SuggestionAssembler()
         assembler.start(requestID: 1)
