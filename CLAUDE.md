@@ -91,7 +91,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 
 **Call**
 - `CallPipeline` : relie, pendant un call, la source audio, la transcription des deux canaux, la conversation, le playbook et la session Claude, et publie ce que la notch affiche. La cible App ne fait que le démarrer, l'arrêter et afficher ce qu'il publie.
-- Un call démarre et s'arrête depuis le menu (« Démarrer un call », « Arrêter le call »). En mode replay, il démarre au lancement de l'app, et « Démarrer un call » rejoue le fichier depuis le début. Il se termine une fois le fichier fini, la dernière réponse de Claude arrivée et la notch repliée, pour que la dernière suggestion ne soit pas perdue.
+- Un call démarre et s'arrête depuis le menu (« Démarrer un call », « Arrêter le call »). En mode replay, il démarre au lancement de l'app, et « Démarrer un call » rejoue le fichier depuis le début. Le fichier fini, le call continue, notch dépliée avec tout son historique, jusqu'à « Arrêter le call ».
 - Les modèles de transcription sont chargés au premier call, puis gardés en mémoire pour les suivants.
 - Si le call ne peut pas démarrer, il ne se termine qu'une fois son message d'échec replié (20 s) : « Arrêter le call » l'efface aussitôt. `CallPipeline` décide de ce que la notch affiche jusqu'à la fin du call, qui la laisse toujours repliée.
 
@@ -101,9 +101,9 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - **`sharingType = .none` obligatoire** : la fenêtre doit rester invisible pendant un partage d'écran. C'est un point non négociable, à couvrir par un test manuel dans la checklist de release.
 - Le panel est toujours sur l'écran principal (`NSScreen.screens.first`, celui choisi comme principal dans Réglages > Moniteurs, et non `NSScreen.main` qui suit le focus) et le suit quand la configuration des écrans change.
 - Position calculée depuis `NSScreen.safeAreaInsets` et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Si l'écran principal a une notch, le panel s'intègre avec : même hauteur, il la prolonge de chaque côté. Sans notch (écran externe), fallback en pilule centrée en haut de l'écran.
-- État replié : indicateur discret (écoute active, session Claude prête ou non). État déplié : suggestion en cours. Animation sobre, pas de clignotement.
-- Une suggestion reste affichée jusqu'à ce que la suivante la remplace, et au plus 20 s après la fin de sa réponse : la notch se replie ensuite. Pendant qu'une nouvelle suggestion se prépare, l'ancienne reste affichée jusqu'au premier mot de la nouvelle. Si Claude répond `-` (rien à suggérer), l'ancienne reste, toujours dans sa limite de 20 s.
-- Si Claude ne peut pas répondre (réseau coupé, limite d'usage de l'abonnement, erreur de l'API), un message court en rouge remplace la suggestion, avec la même limite de 20 s. Les erreurs du démarrage d'un call sont aussi affichées en rouge.
+- État replié : indicateur discret (écoute active, session Claude prête ou non). État déplié : la dernière suggestion, avec l'historique du call au-dessus. Animation sobre, pas de clignotement.
+- Pendant un call, la notch reste dépliée de la première suggestion à la fin du call. Elle n'affiche que la dernière entrée de l'historique du call : les précédentes sont au-dessus, accessibles en faisant défiler vers le haut, et une nouvelle entrée ramène en bas. Pendant qu'une nouvelle suggestion se prépare, l'ancienne reste la dernière entrée jusqu'au premier mot de la nouvelle. Si Claude répond `-` (rien à suggérer), rien ne change. À la fin du call, la notch se replie et l'historique est effacé, comme la transcription.
+- Les échecs du call s'ajoutent à l'historique, en rouge : Claude n'a pas pu répondre (réseau coupé, limite d'usage de l'abonnement, erreur de l'API), Claude est indisponible, capture coupée, call sans playbook. Les messages d'état passagers (« Claude redémarre… ») ne sont pas gardés : ils disparaissent une fois le problème réglé. Un échec du démarrage du call est affiché en rouge 20 s, puis le call se termine.
 - L'app vit dans la barre de menus (`LSUIElement = YES`), pas d'icône dans le Dock.
 
 ## Confidentialité
