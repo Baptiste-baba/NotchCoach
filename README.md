@@ -47,7 +47,13 @@ git clone https://github.com/Baptiste-baba/NotchCoach.git
 cd NotchCoach
 ```
 
-1. **Signature.** `Config/Base.xcconfig` contient l'équipe de développement du projet (`DEVELOPMENT_TEAM`). Remplacez-la par la vôtre, que vous trouverez dans Xcode > Réglages > Comptes. Signer toujours avec la même identité permet à macOS de garder les autorisations (micro, enregistrement de l'écran) d'un build à l'autre.
+1. **Signature.** Créez le fichier de réglages propre à votre machine, puis indiquez-y votre équipe de développement (`DEVELOPMENT_TEAM`), que vous trouverez dans Xcode > Réglages > Comptes :
+
+   ```bash
+   cp Config/Local.xcconfig.example Config/Local.xcconfig
+   ```
+
+   Ce fichier est ignoré par git. Signer toujours avec la même identité permet à macOS de garder les autorisations (micro, enregistrement de l'écran) d'un build à l'autre.
 2. **Compilation.**
 
    ```bash
@@ -174,7 +180,7 @@ Les prompts vivent dans des fichiers dédiés : `App/Prompts/coach-system.md` co
 ```
 NotchCoach/
 ├── NotchCoach.xcodeproj  # format Xcode 27, ne contient aucun réglage de build
-├── Config/               # xcconfig (Base, Debug, Release) et entitlements : seule source des réglages de build
+├── Config/               # xcconfig et entitlements : seule source des réglages de build
 ├── App/                  # cible app : menu, cycle de vie, CallController, prompts
 ├── CoachKit/             # package Swift local, toute la logique
 │   ├── Sources/          # AudioCapture, Transcription, Conversation, ClaudeSession, Prompting, Call, NotchUI
@@ -204,7 +210,7 @@ Suggestion n°3 : fin de tour 1075 ms, envoi 0 ms, Claude 1926 ms, total 3001 ms
 
 Le chemin complet `/usr/bin/log` est nécessaire, car zsh a sa propre commande `log`. Dans Instruments, les repères (signposts) `Segment STT`, `Suggestion` et `Request` du sous-système `io.github.baptiste-baba.NotchCoach` découpent ce budget étape par étape.
 
-**Réglages de build.** Ils se trouvent uniquement dans `Config/*.xcconfig` : le fichier projet n'en contient aucun.
+**Réglages de build.** Ils se trouvent uniquement dans `Config/*.xcconfig` : le fichier projet n'en contient aucun. Seule l'équipe de signature, propre à chaque machine, est dans `Config/Local.xcconfig`, ignoré par git.
 
 **Méthode de travail.** [`CLAUDE.md`](CLAUDE.md), en français, fait référence : contraintes, choix d'architecture, règles de sécurité et méthode de développement. Chaque fonctionnalité y est construite par couches : structure, modèles, interfaces, logique, erreurs, puis tests.
 

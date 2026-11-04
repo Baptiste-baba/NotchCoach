@@ -155,7 +155,7 @@ Ce que dit le prospect arrive directement dans le prompt : c'est une entrée non
 ```
 NotchCoach/
 ├── NotchCoach.xcodeproj  # format Xcode 27 (project.xcproj), ne contient aucun réglage de build
-├── Config/               # xcconfig (Base, Debug, Release) et entitlements : seule source des réglages de build
+├── Config/               # xcconfig (Base, Debug, Release) et entitlements : seule source des réglages de build ; l'équipe de signature est dans Local.xcconfig, ignoré par git (modèle : Local.xcconfig.example)
 ├── App/                  # cible app, mince : lifecycle, menu bar, injection des dépendances
 ├── CoachKit/             # package Swift local, toute la logique ; un seul produit `CoachKit` qui regroupe tous les modules
 │   ├── Sources/

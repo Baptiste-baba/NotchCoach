@@ -13,9 +13,10 @@ PRODUCT_BUNDLE_IDENTIFIER = io.github.baptiste-baba.NotchCoach
 MARKETING_VERSION = 1.0
 CURRENT_PROJECT_VERSION = 1
 
-// Signature : identité stable pour que les permissions TCC tiennent d'un build à l'autre
+// Signature : identité stable pour que les permissions TCC tiennent d'un build à l'autre. L'équipe de développement
+// vient de Local.xcconfig, propre à chaque machine et ignoré par git (modèle : Local.xcconfig.example).
 CODE_SIGN_STYLE = Automatic
-DEVELOPMENT_TEAM = 954Z485XC8
+#include? "Local.xcconfig"
 CODE_SIGN_ENTITLEMENTS = Config/NotchCoach.entitlements
 
 // Non sandboxée (lance un sous-processus), hardened runtime

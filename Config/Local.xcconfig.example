@@ -1,0 +1,4 @@
+// Réglages propres à votre machine. Copiez ce fichier en Local.xcconfig, ignoré par git, et complétez-le.
+
+// Votre équipe de développement : Xcode > Réglages > Comptes, ou le champ « Team ID » de developer.apple.com.
+DEVELOPMENT_TEAM =
