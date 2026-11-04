@@ -1,8 +1,5 @@
 import AVFoundation
 import Foundation
-import os
-
-private let logger = Logger(subsystem: "io.github.baptiste-baba.NotchCoach", category: "AudioCapture")
 
 /// Mode replay : lit un fichier stéréo à vitesse réelle à la place d'un vrai call (canal gauche = moi,
 /// canal droit = prospect) et fournit chaque canal en 16 kHz mono Float32, comme la capture réelle.
@@ -23,6 +20,9 @@ public actor ReplayAudioSource: AudioSource {
     private let prospectChunks: AsyncStream<AudioChunk>
     private let prospectContinuation: AsyncStream<AudioChunk>.Continuation
     private var state = State.idle
+
+    /// Aucune : une erreur de lecture termine le replay, comme la fin du fichier.
+    public nonisolated let failures = AsyncStream<AudioCaptureError> { $0.finish() }
 
     public init(file: URL) {
         self.file = file
