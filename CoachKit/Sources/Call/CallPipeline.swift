@@ -82,6 +82,12 @@ public actor CallPipeline {
         if let playbookError {
             await coordinator.showError("Call sans playbook. \(playbookError.localizedDescription)")
         }
+        // Une capture coupée que sa relance n'a pas réparée, en plein call : la notch le dit en rouge.
+        let failureReports = Task {
+            for await failure in source.failures {
+                await coordinator.showError(failure.localizedDescription)
+            }
+        }
         let transcriptions = Speaker.allCases.map { speaker in
             let segments = ParakeetEngine(speaker: speaker, models: models).transcribe(source.chunks(of: speaker))
             return Task {
@@ -101,6 +107,7 @@ public actor CallPipeline {
         for transcription in transcriptions {
             await transcription.value
         }
+        await failureReports.value
         // Rien n'est perdu : la dernière suggestion arrive et se replie. Après un arrêt, revient tout de suite.
         await coordinator.finish()
         await forwarding.value
