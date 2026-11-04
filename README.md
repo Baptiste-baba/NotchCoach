@@ -226,4 +226,4 @@ Le chemin complet `/usr/bin/log` est nécessaire, car zsh a sa propre commande `
 
 ## Licence
 
-Aucune licence n'est fournie pour l'instant.
+NotchCoach est distribué sous licence MIT : voir [LICENSE](LICENSE).
