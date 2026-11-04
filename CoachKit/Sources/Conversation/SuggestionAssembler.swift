@@ -5,11 +5,6 @@ struct SuggestionAssembler {
     private var requestID: Int?
     private var text = ""
 
-    /// Une réponse est attendue ou en train de s'écrire.
-    var isAnswering: Bool {
-        requestID != nil
-    }
-
     /// Nouvelle requête : la suggestion repart de zéro, et les morceaux des requêtes précédentes sont ignorés.
     mutating func start(requestID: Int) {
         self.requestID = requestID

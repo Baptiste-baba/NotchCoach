@@ -4,57 +4,40 @@ import os
 import Transcription
 
 /// Étape « Conversation » d'un call : reçoit les segments des deux canaux, décide quand demander une suggestion,
-/// l'envoie à la session Claude avec les nouvelles répliques, et décide de ce que la notch affiche.
+/// l'envoie à la session Claude avec les nouvelles répliques, et tient l'historique du call que la notch affiche.
 /// L'appelant démarre la session avant le coordinateur et l'arrête à la fin du call. Le coordinateur ne la relance
 /// que si elle a abandonné ses redémarrages automatiques, à la phrase suivante du prospect.
 public actor ConversationCoordinator {
-    /// Durée d'affichage maximale d'une suggestion après la fin de sa réponse, ou d'un message d'échec.
-    public static let defaultSuggestionLifetime = Duration.seconds(20)
-
-    /// Ce que la notch doit afficher. Un seul consommateur.
+    /// Ce que la notch doit afficher : l'historique du call et le message passager du moment. Un seul consommateur.
     public nonisolated let displays: AsyncStream<CallDisplay>
 
     private let displaysContinuation: AsyncStream<CallDisplay>.Continuation
     private let session: any LLMSession
     /// Instant zéro du call, le même que celui des segments : les mesures de latence s'y rapportent.
     private let callStart: ContinuousClock.Instant
-    /// `defaultSuggestionLifetime`, sauf dans les tests.
-    private let suggestionLifetime: Duration
 
     private var detector = TriggerDetector()
     private var buffer = TranscriptBuffer()
-    private var assembler = SuggestionAssembler() {
-        didSet { notifyChange() }
-    }
+    private var assembler = SuggestionAssembler()
+    private var history = CallHistory()
     private var latency = LatencyTracker()
     private var sessionTasks: [Task<Void, Never>] = []
-    private var hideTask: Task<Void, Never>? {
-        didSet { notifyChange() }
-    }
-    /// Ce que la notch affiche en ce moment.
-    private var current = CoachDisplay.hidden
+    /// Message d'état passager, sous l'historique : Claude redémarre.
+    private var notice: String?
+    /// Dernier affichage publié : un changement sans effet visible n'est pas republié.
+    private var published = CallDisplay()
     /// Dernier état connu de la session : l'appelant l'a démarrée avant de créer le coordinateur.
     private var sessionState = SessionState.running
     /// Un redémarrage de Claude a vidé sa conversation : toute la transcription repartira au prochain envoi.
     private var needsFullResend = false
     /// De la demande au premier mot affiché, pour Instruments.
     private var suggestionInterval: (requestID: Int, state: OSSignpostIntervalState)?
-    private var isStopped = false {
-        didSet { notifyChange() }
-    }
-    /// `finish()` attend ici que change ce qu'il surveille : la réponse en cours, le repli prévu ou l'arrêt.
-    private var changeWaiter: CheckedContinuation<Void, Never>?
+    private var isStopped = false
 
     public init(session: any LLMSession, callStart: ContinuousClock.Instant) {
-        self.init(session: session, callStart: callStart, suggestionLifetime: Self.defaultSuggestionLifetime)
-    }
-
-    /// Pour les tests : durée d'affichage réglable, pour ne pas attendre 20 s.
-    init(session: any LLMSession, callStart: ContinuousClock.Instant, suggestionLifetime: Duration) {
         (displays, displaysContinuation) = AsyncStream.makeStream()
         self.session = session
         self.callStart = callStart
-        self.suggestionLifetime = suggestionLifetime
     }
 
     /// Commence à suivre les réponses et l'état de la session Claude.
@@ -95,20 +78,10 @@ public actor ConversationCoordinator {
         await session.send(LLMRequest(id: requestID, prompt: prompt))
     }
 
-    /// Affiche un message d'erreur en rouge. Comme une suggestion, il se replie après sa durée d'affichage, ou cède
-    /// la place à l'affichage suivant.
+    /// Ajoute un échec à l'historique du call, en rouge.
     public func showError(_ message: String) {
-        show(.error(message))
-        scheduleHide()
-    }
-
-    /// Termine le call sans rien perdre : attend la fin de la réponse en cours et le repli de la notch, puis s'arrête
-    /// comme `stop()`. Pour la fin d'un replay, quand plus aucun segment n'arrivera.
-    public func finish() async {
-        while !isStopped, assembler.isAnswering || hideTask != nil {
-            await withCheckedContinuation { changeWaiter = $0 }
-        }
-        stop()
+        history.addFailure(message)
+        publish()
     }
 
     /// Arrête le suivi de la session et termine le flux d'affichage.
@@ -116,8 +89,6 @@ public actor ConversationCoordinator {
         isStopped = true
         sessionTasks.forEach { $0.cancel() }
         sessionTasks = []
-        hideTask?.cancel()
-        hideTask = nil
         endSuggestionInterval()
         displaysContinuation.finish()
     }
@@ -125,17 +96,17 @@ public actor ConversationCoordinator {
     private func handle(_ event: LLMEvent) {
         switch event {
         case .delta(let requestID, let text):
-            // L'ancienne suggestion reste affichée jusqu'au premier mot montrable de la nouvelle.
+            // L'ancienne suggestion reste la dernière entrée jusqu'au premier mot montrable de la nouvelle.
             guard let shown = assembler.append(text, requestID: requestID) else { return }
             if let measurement = latency.firstWordShown(requestID: requestID, at: callTime()) {
                 report(measurement)
             }
-            show(.suggestion(shown))
+            history.showSuggestion(shown, requestID: requestID)
+            publish()
         case .finished(let requestID):
             endSuggestionInterval(requestID: requestID)
-            // « - » : rien à suggérer, l'ancienne suggestion garde son propre délai.
-            guard assembler.finish(requestID: requestID) != nil else { return }
-            scheduleHide()
+            // « - » : rien à suggérer, l'historique ne change pas.
+            _ = assembler.finish(requestID: requestID)
         case .failed(let requestID, let message):
             logger.error("Suggestion n°\(requestID, privacy: .public) sans réponse : \(message, privacy: .private)")
             guard assembler.fail(requestID: requestID) else { return }
@@ -148,29 +119,24 @@ public actor ConversationCoordinator {
     }
 
     private func handle(_ state: SessionState) {
-        let wasRunning = sessionState == .running
         sessionState = state
         switch state {
         case .restarting:
             needsFullResend = true
-            show(.notice("Claude redémarre…"))
+            notice = "Claude redémarre…"
         case .failed(let message):
             logger.error("Claude indisponible : \(message, privacy: .public)")
-            show(.error("Claude est indisponible. Nouvel essai à la prochaine phrase du prospect."))
+            notice = nil
+            history.addFailure("Claude est indisponible. Nouvel essai à la prochaine phrase du prospect.")
         case .running:
             // Le nouveau process est prêt : une demande partie pendant le redémarrage a échoué, tout est renvoyé.
             prepareFullResendIfNeeded()
-            // Claude est de retour : son message d'état disparaît, mais pas une suggestion déjà commencée.
-            guard !wasRunning else { return }
-            switch current {
-            case .notice, .error:
-                show(.hidden)
-            case .hidden, .suggestion:
-                break
-            }
+            // Claude est de retour : son message d'état disparaît.
+            notice = nil
         case .stopped:
             break
         }
+        publish()
     }
 
     /// Relance la session après l'abandon de ses redémarrages automatiques. Renvoie faux si elle reste indisponible.
@@ -193,28 +159,12 @@ public actor ConversationCoordinator {
         needsFullResend = false
     }
 
-    /// Change ce que la notch affiche. Annule le repli prévu : c'est à l'appelant d'en prévoir un nouveau.
-    private func show(_ display: CoachDisplay) {
-        hideTask?.cancel()
-        hideTask = nil
-        guard display != current else { return }
-        current = display
-        displaysContinuation.yield(CallDisplay(display))
-    }
-
-    private func scheduleHide() {
-        hideTask?.cancel()
-        let lifetime = suggestionLifetime
-        hideTask = Task {
-            try? await Task.sleep(for: lifetime)
-            guard !Task.isCancelled else { return }
-            show(.hidden)
-        }
-    }
-
-    private func notifyChange() {
-        changeWaiter?.resume()
-        changeWaiter = nil
+    /// Publie l'historique et le message passager, s'ils ont changé depuis la dernière publication.
+    private func publish() {
+        let display = CallDisplay(entries: history.entries, notice: notice)
+        guard display != published else { return }
+        published = display
+        displaysContinuation.yield(display)
     }
 
     /// Termine le repère Instruments de la demande en cours s'il est encore ouvert : celui de `requestID` seulement,
