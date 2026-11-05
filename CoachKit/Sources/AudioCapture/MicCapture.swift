@@ -2,18 +2,20 @@ import AVFoundation
 
 /// Capture du micro avec `AVAudioEngine` : la voix de l'utilisateur, convertie en 16 kHz mono. Quand le micro change
 /// (écouteurs branchés, par exemple), `AVAudioEngine` s'arrête sans redémarrer seul : la capture repart sur le
-/// nouveau micro.
+/// nouveau micro, avec un moteur neuf.
 actor MicCapture {
     /// Audio du micro. Le flux se termine à l'arrêt.
     nonisolated let chunks: AsyncStream<AudioChunk>
     private let continuation: AsyncStream<AudioChunk>.Continuation
     /// Coupures que la relance n'a pas réparées.
     private let failures: AsyncStream<AudioCaptureError>.Continuation
-    private let engine = AVAudioEngine()
+    /// Moteur de la dernière tentative de démarrage, réussie ou non : `nil` avant le démarrage et après l'arrêt. Chaque
+    /// tentative en crée un neuf, car un moteur réutilisé après un changement d'appareil annonce encore l'ancien
+    /// format du micro.
+    private var engine: AVAudioEngine?
     /// Instant zéro du call, en secondes de l'horloge hôte.
     private var origin: TimeInterval = 0
     private var configurationObserver: (any NSObjectProtocol)?
-    private var isRunning = false
     /// Une capture ne sert qu'une fois : après `stop()`, `start()` n'a plus d'effet.
     private var isStopped = false
 
@@ -25,42 +27,31 @@ actor MicCapture {
     /// Démarre la capture, après avoir demandé l'accès au micro s'il ne l'a jamais été. `origin` : instant zéro du
     /// call, en secondes de l'horloge hôte.
     func start(origin: TimeInterval) async throws(AudioCaptureError) {
-        guard !isRunning, !isStopped else { return }
+        guard engine == nil, !isStopped else { return }
         try await Self.requireAccess()
-        // Arrêté pendant la demande d'accès : la capture ne démarre pas.
-        guard !isStopped else { return }
+        // Arrêté, ou déjà démarré, pendant la demande d'accès : rien à faire.
+        guard engine == nil, !isStopped else { return }
         self.origin = origin
-        try startEngine()
-        isRunning = true
-        configurationObserver = NotificationCenter.default.addObserver(
-            forName: .AVAudioEngineConfigurationChange,
-            object: engine,
-            queue: nil
-        ) { [weak self] _ in
-            Task { await self?.restart() }
+        do {
+            try startEngine()
+        } catch {
+            stopEngine()
+            throw error
         }
     }
 
     func stop() {
         isStopped = true
-        if let configurationObserver {
-            NotificationCenter.default.removeObserver(configurationObserver)
-        }
-        configurationObserver = nil
-        if isRunning {
-            engine.inputNode.removeTap(onBus: 0)
-            engine.stop()
-        }
-        isRunning = false
+        stopEngine()
         continuation.finish()
     }
 
     /// Le micro a changé : la capture repart sur le nouveau, avec son format. En cas d'échec, la coupure est signalée,
-    /// et le prochain changement (retour des écouteurs, par exemple) relance une nouvelle tentative.
+    /// et le prochain changement (retour des écouteurs, par exemple) relance une nouvelle tentative : le moteur qui n'a
+    /// pas démarré reçoit lui aussi la notification.
     private func restart() {
-        guard isRunning, !isStopped else { return }
-        engine.inputNode.removeTap(onBus: 0)
-        engine.stop()
+        guard engine != nil, !isStopped else { return }
+        stopEngine()
         do {
             try startEngine()
             logger.notice("Micro relancé après un changement d'appareil")
@@ -70,11 +61,27 @@ actor MicCapture {
         }
     }
 
+    /// Démarre la capture sur un moteur neuf, surveillé dès sa création : même s'il ne démarre pas, le prochain
+    /// changement d'appareil relance une tentative.
     private func startEngine() throws(AudioCaptureError) {
+        let engine = AVAudioEngine()
+        self.engine = engine
+        configurationObserver = NotificationCenter.default.addObserver(
+            forName: .AVAudioEngineConfigurationChange,
+            object: engine,
+            queue: nil
+        ) { [weak self] _ in
+            Task { await self?.restart() }
+        }
         let input = engine.inputNode
         let format = input.outputFormat(forBus: 0)
         guard format.channelCount > 0, format.sampleRate > 0 else {
             throw .microphoneUnavailable(reason: "aucun micro n'est disponible.")
+        }
+        // Garde-fou : avec un format qui ne correspond pas à celui du micro, `installTap` lève une exception
+        // Objective-C, que Swift ne peut pas rattraper, et l'app plante.
+        guard format.sampleRate == input.inputFormat(forBus: 0).sampleRate else {
+            throw .microphoneUnavailable(reason: "le format du micro est en train de changer.")
         }
         guard let resampler = MonoResampler(from: format) else {
             throw .microphoneUnavailable(reason: "le format du micro n'est pas pris en charge.")
@@ -91,9 +98,19 @@ actor MicCapture {
         do {
             try engine.start()
         } catch {
-            input.removeTap(onBus: 0)
             throw .microphoneUnavailable(reason: error.localizedDescription)
         }
+    }
+
+    /// Arrête le moteur et cesse de le surveiller. Sans effet si aucun moteur n'existe.
+    private func stopEngine() {
+        if let configurationObserver {
+            NotificationCenter.default.removeObserver(configurationObserver)
+        }
+        configurationObserver = nil
+        engine?.inputNode.removeTap(onBus: 0)
+        engine?.stop()
+        engine = nil
     }
 
     /// Sans accès, `AVAudioEngine` capte du silence sans rien signaler : l'accès est vérifié avant de démarrer.
