@@ -68,6 +68,14 @@ cd NotchCoach
    ```
 
    Lancez l'app avec `open` ou depuis le Finder plutôt qu'en exécutant directement son binaire. Sinon, macOS attribue les autorisations au terminal et non à NotchCoach.
+4. **Installation dans Applications**, pour l'usage quotidien. Quittez d'abord NotchCoach s'il tourne, puis installez la version Release, optimisée et sans le menu de debug :
+
+   ```bash
+   xcodebuild -project NotchCoach.xcodeproj -scheme NotchCoach -configuration Release -derivedDataPath build build
+   rm -rf /Applications/NotchCoach.app && ditto build/Build/Products/Release/NotchCoach.app /Applications/NotchCoach.app
+   ```
+
+   NotchCoach se lance alors depuis le Launchpad ou Spotlight, et son icône peut être glissée dans le Dock. Relancez ces deux commandes après chaque mise à jour du code. Signée avec la même identité que le build Debug, l'app garde ses autorisations.
 
 **Claude Code.** Vérifiez dans un terminal que la commande `claude` fonctionne et que vous êtes connecté. Si besoin, lancez `claude`, puis `/login`. Une app graphique n'hérite pas du `PATH` du terminal : NotchCoach cherche donc le CLI avec votre shell de connexion (`zsh -lc 'command -v claude'`), puis garde le chemin trouvé. Pour en imposer un autre :
 

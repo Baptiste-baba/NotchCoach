@@ -186,6 +186,10 @@ swift Fixtures/generate-call-objection-prix.swift
 
 # Mode replay : rejoue un fichier audio à la place d'un vrai call
 ./build/Build/Products/Debug/NotchCoach.app/Contents/MacOS/NotchCoach --replay Fixtures/call-objection-prix.wav
+
+# Installation pour l'usage quotidien (quitter l'app d'abord) : version Release dans /Applications
+xcodebuild -project NotchCoach.xcodeproj -scheme NotchCoach -configuration Release -derivedDataPath build build
+rm -rf /Applications/NotchCoach.app && ditto build/Build/Products/Release/NotchCoach.app /Applications/NotchCoach.app
 ```
 
 Le mode replay est une fonctionnalité de premier ordre, pas un bonus : c'est le seul moyen de tester le pipeline complet et de mesurer la latence sans être réellement au téléphone. Il remplace la capture audio par la lecture d'un fichier (stéréo : canal gauche = moi, canal droit = prospect) à vitesse réelle.
