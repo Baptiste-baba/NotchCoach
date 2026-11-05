@@ -15,9 +15,9 @@ Micro (vous) ────────────┘   (Parakeet, par canal)   (
 1. **Deux canaux audio.** L'audio du Mac, capté avec ScreenCaptureKit, est la voix du prospect. Le micro, capté avec AVAudioEngine, est la vôtre. Cette séparation tient lieu de diarisation : aucun modèle n'a à deviner qui parle.
 2. **Transcription locale**, sur le Neural Engine. Silero VAD repère la fin de chaque prise de parole, puis Parakeet Ultra (via [FluidAudio](https://github.com/FluidInference/FluidAudio)) la transcrit d'un coup. Aucun audio ne quitte le Mac.
 3. **Déclenchement.** Quand le prospect finit une phrase, les nouvelles répliques du call partent vers une session `claude` lancée au début du call et gardée prête. Il part au plus une demande toutes les 5 s.
-4. **Affichage.** La réponse s'écrit mot par mot dans la notch : une ou deux phrases de 20 mots au plus, prêtes à être dites, appuyées sur votre playbook.
+4. **Affichage.** La réponse s'écrit mot par mot dans la notch : une phrase prête à dire au prospect, puis 3 points clés (arguments ou questions) à développer vous-même, appuyés sur votre playbook.
 
-**Objectif de latence :** 3 s au plus entre la fin de la phrase du prospect et le premier mot affiché. En replay, on mesure entre 2 et 3,5 s environ. La première suggestion d'un call est souvent la plus lente.
+**Objectif de latence :** 3 s au plus entre la fin de la phrase du prospect et le premier mot affiché. Le format actuel, une phrase puis trois points clés, le dépasse : il faut compter 4 à 6 s en replay, car Claude réfléchit plus longtemps avant d'écrire. C'est un choix assumé pour des suggestions plus utiles, et un délai à réduire. La première suggestion d'un call est souvent la plus lente.
 
 ## Fonctionnalités
 
@@ -218,7 +218,7 @@ Le chemin complet `/usr/bin/log` est nécessaire, car zsh a sa propre commande `
 
 - **Sans écouteurs**, le micro capte la voix du prospect, qui apparaît alors aussi dans la transcription comme la vôtre.
 - **Les suggestions sont en français**, et leur qualité est en cours d'ajustement sur de vrais calls.
-- **La première suggestion d'un call** est souvent la plus lente.
+- **La latence dépasse l'objectif de 3 s** avec le format en points clés, et la première suggestion d'un call est souvent la plus lente.
 - **Prévu :**
   - un écran d'accueil pour les autorisations ;
   - un indicateur discret quand la notch est repliée (écoute en cours, Claude prêt ou non) ;
