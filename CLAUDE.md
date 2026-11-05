@@ -56,7 +56,7 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Les deux sorties sont rééchantillonnées en 16 kHz mono Float32 avant de sortir du module.
 - La séparation des canaux fait office de diarisation : `.me` = micro, `.prospect` = audio système. Pas de modèle de diarisation.
 - `LiveAudioSource` réunit les deux captures pendant un vrai call, `ReplayAudioSource` lit un fichier à leur place. Les deux suivent le protocole `AudioSource`.
-- Une capture coupée en plein call est relancée : le micro quand l'appareil audio change (écouteurs branchés : `AVAudioEngine` s'arrête alors sans redémarrer seul ; il repart sur un moteur neuf, car un moteur réutilisé garde l'ancien format du micro et `installTap` fait alors planter l'app), l'audio du système quand son flux s'arrête (écran débranché). Si la relance échoue, ou si l'accès au micro ou à l'enregistrement de l'écran manque au démarrage, la notch le dit en rouge.
+- Une capture coupée en plein call est relancée : le micro quand l'appareil audio change (écouteurs branchés : `AVAudioEngine` s'arrête alors sans redémarrer seul ; il repart sur un moteur neuf, car un moteur réutilisé garde l'ancien format du micro et `installTap` fait alors planter l'app), l'audio du système quand son flux s'arrête (écran débranché). Pendant un changement d'appareil, macOS passe par des formats transitoires qui font échouer les premières relances du micro : un échec n'est signalé que si le micro est toujours coupé 2 s plus tard. Si la relance échoue, ou si l'accès au micro ou à l'enregistrement de l'écran manque au démarrage, la notch le dit en rouge.
 
 **Transcription**
 - Protocole `TranscriptionEngine` : prend un flux audio, émet des `TranscriptSegment`.

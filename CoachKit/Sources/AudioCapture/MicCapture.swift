@@ -16,8 +16,13 @@ actor MicCapture {
     /// Instant zéro du call, en secondes de l'horloge hôte.
     private var origin: TimeInterval = 0
     private var configurationObserver: (any NSObjectProtocol)?
+    /// Signalement de la dernière relance ratée, en attente de `failureGracePeriod`.
+    private var pendingFailureReport: Task<Void, Never>?
     /// Une capture ne sert qu'une fois : après `stop()`, `start()` n'a plus d'effet.
     private var isStopped = false
+
+    /// Délai avant de signaler une relance ratée : le temps que le nouvel appareil se stabilise.
+    private static let failureGracePeriod: Duration = .seconds(2)
 
     init(failures: AsyncStream<AudioCaptureError>.Continuation) {
         (chunks, continuation) = AsyncStream.makeStream()
@@ -46,9 +51,9 @@ actor MicCapture {
         continuation.finish()
     }
 
-    /// Le micro a changé : la capture repart sur le nouveau, avec son format. En cas d'échec, la coupure est signalée,
-    /// et le prochain changement (retour des écouteurs, par exemple) relance une nouvelle tentative : le moteur qui n'a
-    /// pas démarré reçoit lui aussi la notification.
+    /// Le micro a changé : la capture repart sur le nouveau, avec son format. En cas d'échec, le prochain changement
+    /// (retour des écouteurs, par exemple) relance une nouvelle tentative : le moteur qui n'a pas démarré reçoit lui
+    /// aussi la notification.
     private func restart() {
         guard engine != nil, !isStopped else { return }
         stopEngine()
@@ -57,8 +62,25 @@ actor MicCapture {
             logger.notice("Micro relancé après un changement d'appareil")
         } catch {
             logger.error("Micro coupé après un changement d'appareil : \(error.localizedDescription, privacy: .public)")
-            failures.yield(error)
+            reportUnlessRecovered(error)
         }
+    }
+
+    /// Pendant un changement d'appareil, macOS passe par des formats transitoires (micro à 0 Hz, par exemple) : les
+    /// premières relances échouent, puis une suivante réussit, en moins d'une seconde. Une coupure n'est donc signalée
+    /// que si le micro est toujours arrêté après `failureGracePeriod`.
+    private func reportUnlessRecovered(_ error: AudioCaptureError) {
+        pendingFailureReport?.cancel()
+        pendingFailureReport = Task { [weak self] in
+            try? await Task.sleep(for: Self.failureGracePeriod)
+            guard !Task.isCancelled else { return }
+            await self?.reportIfStillDown(error)
+        }
+    }
+
+    private func reportIfStillDown(_ error: AudioCaptureError) {
+        guard !isStopped, engine?.isRunning != true else { return }
+        failures.yield(error)
     }
 
     /// Démarre la capture sur un moteur neuf, surveillé dès sa création : même s'il ne démarre pas, le prochain
