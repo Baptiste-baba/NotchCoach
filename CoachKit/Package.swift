@@ -23,7 +23,7 @@ let package = Package(
             dependencies: ["AudioCapture", .product(name: "FluidAudio", package: "FluidAudio")]
         ),
         .target(name: "Conversation", dependencies: ["AudioCapture", "Transcription", "ClaudeSession"]),
-        .target(name: "Prompting"),
+        .target(name: "Prompting", dependencies: ["ClaudeSession"]),
         .target(
             name: "Call",
             dependencies: ["AudioCapture", "Transcription", "Conversation", "ClaudeSession", "Prompting"]
