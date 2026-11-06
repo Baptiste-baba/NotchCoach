@@ -127,15 +127,11 @@ public actor ClaudeSession: LLMSession {
     /// Lance le process pour la génération en cours au moment de l'appel. Si elle a changé pendant la recherche
     /// du binaire (`stop()`, ou un autre lancement arrivé avant), le process est aussitôt arrêté.
     private func launch(generation launchGeneration: Int) async throws {
-        // Une app lancée hors du terminal peut ne pas avoir ces variables ; le CLI en a besoin.
-        var environment = ProcessInfo.processInfo.environment
-        environment["USER"] = environment["USER"] ?? NSUserName()
-        environment["HOME"] = environment["HOME"] ?? NSHomeDirectory()
         let configuration = ClaudeLaunchConfiguration(
             executableURL: try await locateBinary(options.binaryPathOverride),
             options: options,
-            workingDirectory: try Self.makeWorkingDirectory(),
-            parentEnvironment: environment
+            workingDirectory: try ClaudeLaunchConfiguration.makeWorkingDirectory(),
+            parentEnvironment: ClaudeLaunchConfiguration.appEnvironment
         )
         let process = try ClaudeProcess(configuration: configuration)
         guard isActive, generation == launchGeneration else {
@@ -232,13 +228,5 @@ public actor ClaudeSession: LLMSession {
             }
         }
         pendingRequests.removeAll()
-    }
-
-    /// Répertoire de travail dédié et vide du process.
-    private static func makeWorkingDirectory() throws -> URL {
-        let url = URL.applicationSupportDirectory
-            .appending(path: "NotchCoach/ClaudeWorkingDirectory", directoryHint: .isDirectory)
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
-        return url
     }
 }

@@ -24,11 +24,14 @@ public struct Profile: Equatable, Hashable, Identifiable, Sendable {
 
     /// Lit le prompt du profil.
     public func loadPrompt() throws(PromptingError) -> String {
-        fatalError("TODO")
+        guard let prompt = try? String(contentsOf: promptURL, encoding: .utf8) else {
+            fatalError("TODO couche Erreurs")
+        }
+        return prompt
     }
 
-    /// Playbook du profil, recréé vide s'il a été supprimé.
+    /// Playbook du profil, recréé vide s'il a été supprimé : ses rubriques d'origine ne sont plus connues.
     public var playbookFile: PlaybookFile {
-        fatalError("TODO")
+        PlaybookFile(url: playbookURL, template: "")
     }
 }

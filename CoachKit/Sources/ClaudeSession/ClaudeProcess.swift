@@ -2,7 +2,7 @@ import Foundation
 import os
 
 /// Un process `claude` lancé, avec ses pipes : écriture sur stdin, lecture de stdout ligne par ligne.
-final class ClaudeProcess {
+final class ClaudeProcess: Sendable {
     /// Lignes de stdout. Le flux se termine quand le process meurt (stdout fermé).
     let outputLines: AsyncStream<String>
 
@@ -44,6 +44,11 @@ final class ClaudeProcess {
     /// Écrit une ligne sur stdin. Lève une erreur si le process est mort.
     func write(line: String) throws {
         try input.write(contentsOf: Data((line + "\n").utf8))
+    }
+
+    /// Ferme stdin. En mode réponse unique, le CLI attend cette fin de flux pour traiter la requête.
+    func closeInput() {
+        try? input.close()
     }
 
     func terminate() {

@@ -1,49 +1,47 @@
 import Testing
 @testable import Prompting
 
-/// Consignes du coach avec l'emplacement du playbook, comme dans `coach-system.md`.
-private let instructions = """
-    Tu es un coach.
+/// Partie technique avec les emplacements du prompt et du playbook, comme dans `coach-frame.md`.
+private let frame = """
+    Tu aides « Moi ».
 
     <playbook>
     {{playbook}}
     </playbook>
 
-    Réponds court.
+    <consignes>
+    {{prompt}}
+    </consignes>
     """
 
 struct SystemPromptTests {
-    @Test func playbookTakesThePlaceOfThePlaceholder() {
-        let text = SystemPrompt.text(instructions: instructions, playbook: Playbook(markdown: "## Pricing\n49 € par mois"))
+    @Test func promptAndPlaybookTakeThePlaceOfTheirPlaceholders() {
+        let text = SystemPrompt.text(frame: frame, prompt: "Réponds court.", playbook: Playbook(markdown: "## Pricing\n49 € par mois"))
 
         #expect(text == """
-            Tu es un coach.
+            Tu aides « Moi ».
 
             <playbook>
             ## Pricing
             49 € par mois
             </playbook>
 
+            <consignes>
             Réponds court.
+            </consignes>
             """)
     }
 
     @Test func blankLinesAroundThePlaybookAreRemoved() {
-        let text = SystemPrompt.text(instructions: instructions, playbook: Playbook(markdown: "\n\n## Pricing\n\n"))
+        let text = SystemPrompt.text(frame: frame, prompt: "Réponds court.", playbook: Playbook(markdown: "\n\n## Pricing\n\n"))
 
         #expect(text.contains("<playbook>\n## Pricing\n</playbook>"))
     }
 
     @Test func callWithoutPlaybookLeavesItsPlaceEmpty() {
-        let text = SystemPrompt.text(instructions: instructions, playbook: Playbook(markdown: ""))
+        let text = SystemPrompt.text(frame: frame, prompt: "Réponds court.", playbook: Playbook(markdown: ""))
 
         #expect(text.contains("<playbook>\n\n</playbook>"))
         #expect(!text.contains("{{playbook}}"))
-    }
-
-    @Test func playbookIsAppendedWhenTheInstructionsHaveNoPlaceholder() {
-        let text = SystemPrompt.text(instructions: "Tu es un coach.", playbook: Playbook(markdown: "## Pricing"))
-
-        #expect(text == "Tu es un coach.\n\n## Pricing")
     }
 }
