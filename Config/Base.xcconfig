@@ -12,6 +12,7 @@ PRODUCT_NAME = $(TARGET_NAME)
 PRODUCT_BUNDLE_IDENTIFIER = io.github.baptiste-baba.NotchCoach
 MARKETING_VERSION = 1.0
 CURRENT_PROJECT_VERSION = 1
+ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 
 // Signature : identité stable pour que les permissions TCC tiennent d'un build à l'autre. L'équipe de développement
 // vient de Local.xcconfig, propre à chaque machine et ignoré par git (modèle : Local.xcconfig.example).
