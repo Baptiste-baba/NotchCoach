@@ -26,6 +26,7 @@ Micro (vous) ────────────┘   (Parakeet, par canal)   (
 - **Profils.** Un profil par usage, par exemple « Vente » et « Entretien » : chacun a son prompt (le rôle de Claude et le format de ses réponses) et son playbook (vos informations). Vous passez de l'un à l'autre dans le menu, avant un call.
 - **Playbook.** Un fichier Markdown par profil : votre offre, vos prix et vos réponses validées pour la vente, votre parcours et vos projets pour un entretien. Claude s'appuie dessus et n'invente jamais un prix ni un engagement qui n'y figure pas.
 - **Nouveau profil écrit par Claude.** Décrivez la situation en une phrase : Claude Opus écrit le prompt du profil et les rubriques de son playbook.
+- **Calls enregistrés, avec résumé et débrief.** Chaque call est gardé 6 mois avec sa transcription. Claude Opus en écrit un résumé et un débrief pour progresser : ce qui a marché, ce qui est à travailler, avec vos phrases et de meilleures formulations. Une fenêtre permet de les relire.
 - **Mode replay.** Il rejoue un fichier audio à la place d'un vrai call, pour tester et mesurer sans être au téléphone.
 - **Robustesse.** Chaque partie se relance seule après une coupure :
   - Claude : jusqu'à 5 tentatives, puis une nouvelle à la phrase suivante du prospect ;
@@ -115,9 +116,23 @@ Prompt et playbook sont lus au début de chaque call : une modification compte �
    - Quand Claude n'a rien d'utile à suggérer (politesses, banalités), rien ne change.
    - Les échecs s'ajoutent à l'historique en rouge : Claude n'a pas pu répondre (réseau coupé, limite d'usage de l'abonnement, erreur de l'API), Claude est indisponible, micro ou audio coupé, call sans playbook.
    - Les messages d'état passagers, comme « Claude redémarre… », s'affichent en gris et disparaissent une fois le problème réglé.
-4. **Fin.** Cliquez sur **« Arrêter le call »**. La notch se replie, la transcription et l'historique sont effacés, et Claude s'arrête.
+4. **Fin.** Cliquez sur **« Arrêter le call »**. La notch se replie, son historique est effacé, et Claude s'arrête. Le call est enregistré avec sa transcription, et son compte rendu s'écrit en arrière-plan (voir ci-dessous).
 
 La notch s'affiche toujours sur l'écran principal, celui choisi dans Réglages Système > Moniteurs.
+
+### Les calls enregistrés
+
+Le menu **« Calls enregistrés… »** ouvre une fenêtre qui liste vos calls, du plus récent au plus ancien, regroupés par période : aujourd'hui, cette semaine, puis par mois. Chaque call a trois onglets :
+
+- **Résumé** : de quoi vous avez parlé, ce qui a été dit d'important, les décisions et les prochaines étapes.
+- **Débrief** : ce qui a marché, et ce qui est à travailler. Chaque point à travailler cite votre phrase et son moment, avec une meilleure formulation. Un clic sur le moment (« Toi, à 04:12 ») ouvre la transcription sur cette réplique, surlignée.
+- **Transcription** : tout l'échange, réplique par réplique, avec le moment et qui parle.
+
+Le titre court, le résumé et le débrief sont écrits par Claude Opus quelques secondes après la fin du call, à partir de la transcription, du prompt et du playbook du profil : le débrief peut ainsi relever une réponse de votre playbook que vous n'avez pas utilisée. Si Claude échoue (réseau, limite d'usage), ou si l'app est fermée pendant l'écriture, la transcription reste disponible et **« Réessayer »** relance l'écriture.
+
+- **Conservation** : chaque call est gardé 6 mois, puis supprimé automatiquement. Un clic droit sur un call permet de le supprimer plus tôt.
+- **Ce qui n'est pas enregistré** : un replay, qui est un test, et un call où personne n'a parlé.
+- **Où** : un fichier JSON par call dans `~/Library/Application Support/NotchCoach/Calls/`. Il contient aussi une copie du prompt et du playbook du profil, pour pouvoir réécrire le compte rendu même si le profil a changé depuis.
 
 ### Mode replay
 
@@ -143,10 +158,11 @@ Dans un build Debug, le menu **« Tester Claude »** envoie un prompt fixe à Cl
 
 - **Aucun audio n'est écrit sur disque**, jamais.
 - **La transcription se fait en local**, sur le Mac.
-- **Deux flux quittent le Mac**, envoyés à Anthropic par le CLI `claude`, selon les conditions de votre compte Claude :
-  - le texte de la conversation, avec le prompt et le playbook du profil, pour générer les suggestions ;
+- **Ces flux quittent le Mac**, envoyés à Anthropic par le CLI `claude`, selon les conditions de votre compte Claude :
+  - le texte de la conversation, avec le prompt et le playbook du profil, pour générer les suggestions, puis le compte rendu du call ;
   - la description d'un nouveau profil, pour en écrire le prompt.
-- **Tout est effacé à la fin du call** : la transcription et l'historique ne vivent qu'en mémoire. La session `claude` est lancée sans persistance : rien n'est écrit dans `~/.claude/projects/`.
+- **Les calls sont gardés 6 mois sur le Mac** : leur transcription, leur résumé et leur débrief, jamais l'audio. Ils sont ensuite supprimés automatiquement, et vous pouvez les supprimer plus tôt depuis la fenêtre des calls.
+- **Rien n'est gardé côté Claude Code** : les process `claude` sont lancés sans persistance, rien n'est écrit dans `~/.claude/projects/`.
 - **Les journaux masquent le contenu.** NotchCoach journalise avec `os.Logger`, et le contenu des transcriptions et des suggestions y est toujours masqué (`privacy: .private`).
 
 ## Sécurité
@@ -159,7 +175,7 @@ claude -p --input-format stream-json --output-format stream-json --verbose --inc
   --system-prompt <prompt>
 ```
 
-La génération d'un nouveau profil utilise les mêmes options d'isolation, en une seule requête, avec Claude Opus : la description passe par l'entrée standard, et la réponse arrive en un seul objet JSON.
+La génération d'un nouveau profil ou du compte rendu d'un call utilise les mêmes options d'isolation, en une seule requête, avec Claude Opus : la description ou la transcription passe par l'entrée standard, et la réponse arrive en un seul objet JSON.
 
 ```
 claude -p --output-format json \
@@ -178,7 +194,7 @@ claude -p --output-format json \
 
 ## Usage responsable
 
-- **Informez toujours le prospect** en début de call qu'un assistant transcrit l'échange et prend des notes : c'est une obligation d'information du RGPD. Selon le pays, d'autres règles encadrent l'écoute d'un appel : vérifiez celles qui vous concernent.
+- **Informez toujours le prospect** en début de call qu'un assistant transcrit l'échange et prend des notes, conservées 6 mois : c'est une obligation d'information du RGPD. Selon le pays, d'autres règles encadrent l'écoute d'un appel : vérifiez celles qui vous concernent.
 - **L'invisibilité au partage d'écran** sert à garder propre ce que vous partagez, pas à cacher l'assistant au prospect.
 
 ## Architecture
@@ -192,7 +208,9 @@ Toute la logique vit dans le package Swift local `CoachKit`. La cible `App` rest
 | `Conversation` | `TranscriptBuffer` (répliques pas encore envoyées), `TriggerDetector` (quand demander une suggestion), `CallHistory` (ce que montre la notch) et `ConversationCoordinator`, qui les orchestre. |
 | `ClaudeSession` | Le process `claude` et son protocole `stream-json` : streaming, interruption d'une réponse devenue obsolète, redémarrage avec backoff. Le protocole `LLMSession` permet une fausse session dans les tests. `ClaudeCompletion` fait une requête unique au CLI, avec la même isolation. |
 | `Prompting` | Les profils (`ProfileStore`, prompt et playbook), leur génération par Claude (`ProfileGenerator`) et l'assemblage du prompt système. |
-| `Call` | `CallPipeline` relie, pendant un call, la source audio, la transcription, la conversation, le profil actif et Claude. |
+| `Call` | `CallPipeline` relie, pendant un call, la source audio, la transcription, la conversation, le profil actif et Claude, puis rend le call terminé à enregistrer. |
+| `CallArchive` | Les calls enregistrés (`CallArchive`, un fichier JSON par call, conservation 6 mois) et l'écriture de leur compte rendu par Claude (`CallRecapGenerator`). |
+| `CallsUI` | La fenêtre « Calls enregistrés » : la liste par période, et le résumé, le débrief et la transcription de chaque call. |
 | `NotchUI` | Le panel de la notch : un `NSPanel` non activant, placé au-dessus de la barre de menus et invisible au partage d'écran, avec la vue SwiftUI de l'historique. |
 
 Le projet utilise Swift 6 en mode de concurrence strict. Chaque étape est un `actor`, les étapes communiquent par `AsyncStream`, et seule l'interface tourne sur le `@MainActor`.
@@ -200,7 +218,8 @@ Le projet utilise Swift 6 en mode de concurrence strict. Chaque étape est un `a
 Les prompts vivent dans des fichiers dédiés, dans `App/Prompts/` :
 - `coach-frame.md` : la partie technique du prompt système, avec les emplacements `{{prompt}}` (le prompt du profil) et `{{playbook}}` ;
 - `default-sales-prompt.md` et `default-sales-playbook.md`, `default-interview-prompt.md` et `default-interview-playbook.md` : les profils créés au premier lancement ;
-- `profile-generator.md` : les consignes données à Claude Opus pour écrire un nouveau profil.
+- `profile-generator.md` : les consignes données à Claude Opus pour écrire un nouveau profil ;
+- `call-recap.md` : les consignes données à Claude Opus pour écrire le titre, le résumé et le débrief d'un call.
 
 ## Structure du dépôt
 
@@ -210,7 +229,7 @@ NotchCoach/
 ├── Config/               # xcconfig et entitlements : seule source des réglages de build
 ├── App/                  # cible app : menu, cycle de vie, CallController, prompts
 ├── CoachKit/             # package Swift local, toute la logique
-│   ├── Sources/          # AudioCapture, Transcription, Conversation, ClaudeSession, Prompting, Call, NotchUI
+│   ├── Sources/          # AudioCapture, Transcription, Conversation, ClaudeSession, Prompting, Call, CallArchive, CallsUI, NotchUI
 │   └── Tests/            # Swift Testing
 ├── Fixtures/             # call synthétique pour le replay, et son script de génération
 └── CLAUDE.md             # spécification et règles de développement du projet
@@ -218,7 +237,7 @@ NotchCoach/
 
 ## Développement
 
-**Tests.** Le package compte environ 200 tests Swift Testing. Ils couvrent toute la logique pure : déclencheur, répliques à envoyer, protocole `stream-json`, profils et prompt, historique, coordinateur (avec une fausse session Claude) et conversion audio. La capture audio et l'interface se testent en replay et à la main.
+**Tests.** Le package compte environ 250 tests Swift Testing. Ils couvrent toute la logique pure : déclencheur, répliques à envoyer, protocole `stream-json`, profils et prompt, historique, coordinateur (avec une fausse session Claude), conversion audio, calls enregistrés et lecture de leur compte rendu. La capture audio et l'interface se testent en replay et à la main.
 
 ```bash
 cd CoachKit && swift test
