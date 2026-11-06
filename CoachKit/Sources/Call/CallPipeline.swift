@@ -1,4 +1,5 @@
 import AudioCapture
+import CallArchive
 import ClaudeSession
 import Conversation
 import Prompting
@@ -129,6 +130,12 @@ public actor CallPipeline {
         await waitUntilStopped()
         await forwarding.value
         await session.stop()
+    }
+
+    /// Call à enregistrer, une fois `run()` revenu : sa transcription et le profil utilisé. `nil` si personne n'a
+    /// parlé, ou si le call n'a pas pu démarrer.
+    public func savedCall() async -> SavedCall? {
+        fatalError("TODO")
     }
 
     /// Arrête le call tout de suite : la source, la conversation et Claude.

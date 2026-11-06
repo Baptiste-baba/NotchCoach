@@ -26,7 +26,7 @@ let package = Package(
         .target(name: "Prompting", dependencies: ["ClaudeSession"]),
         .target(
             name: "Call",
-            dependencies: ["AudioCapture", "Transcription", "Conversation", "ClaudeSession", "Prompting"]
+            dependencies: ["AudioCapture", "Transcription", "Conversation", "ClaudeSession", "Prompting", "CallArchive"]
         ),
         .target(name: "CallArchive", dependencies: ["ClaudeSession"]),
         .target(name: "CallsUI", dependencies: ["CallArchive"]),

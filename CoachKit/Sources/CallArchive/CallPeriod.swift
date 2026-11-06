@@ -1,3 +1,5 @@
+import Foundation
+
 /// Groupe de la liste des calls : « Aujourd'hui », « Cette semaine », puis un groupe par mois.
 public struct CallPeriod: Equatable, Identifiable, Sendable {
     /// Nom affiché au-dessus du groupe.
@@ -11,4 +13,9 @@ public struct CallPeriod: Equatable, Identifiable, Sendable {
     }
 
     public var id: String { title }
+
+    /// Calls regroupés par période, du plus récent au plus ancien. Logique pure.
+    public static func group(_ calls: [SavedCall], now: Date, calendar: Calendar = .current) -> [CallPeriod] {
+        fatalError("TODO")
+    }
 }

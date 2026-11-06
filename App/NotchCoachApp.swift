@@ -1,3 +1,4 @@
+import CallsUI
 import SwiftUI
 
 @main struct NotchCoachApp: App {
@@ -12,6 +13,11 @@ import SwiftUI
         }
         .windowResizability(.contentSize)
         // Ouverte seulement depuis le menu, jamais au lancement.
+        .defaultLaunchBehavior(.suppressed)
+        Window("Calls enregistrés", id: CallsWindowView.windowID) {
+            CallsWindowView(library: appDelegate.callLibrary)
+        }
+        // Jamais au lancement, ni à la fin d'un call : seulement depuis le menu.
         .defaultLaunchBehavior(.suppressed)
     }
 }

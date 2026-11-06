@@ -1,4 +1,5 @@
 import AppKit
+import CallsUI
 import Prompting
 import SwiftUI
 
@@ -16,6 +17,10 @@ struct MenuContent: View {
             Button("Démarrer un call") {
                 appDelegate.callController.startCall()
             }
+        }
+        Button("Calls enregistrés…") {
+            NSApp.activate()
+            openWindow(id: CallsWindowView.windowID)
         }
         Divider()
         Picker("Profil", selection: activeProfile) {

@@ -1,5 +1,6 @@
 import AudioCapture
 import Call
+import CallArchive
 import Conversation
 import Foundation
 import NotchUI
@@ -16,15 +17,18 @@ final class CallController {
     @ObservationIgnored private let notch: NotchPanelController
     /// Fournit le profil actif au démarrage de chaque call.
     @ObservationIgnored private let profiles: ProfileController
+    /// Enregistre chaque call terminé.
+    @ObservationIgnored private let archive: CallArchive
     /// Fichier rejoué à la place de la vraie capture, à chaque call ; `nil` hors mode replay.
     @ObservationIgnored private let replayFile: URL?
     /// Gardés d'un call à l'autre : seul le premier call charge les modèles.
     @ObservationIgnored private let models = ParakeetModels()
     @ObservationIgnored private var pipeline: CallPipeline?
 
-    init(notch: NotchPanelController, profiles: ProfileController, replayFile: URL?) {
+    init(notch: NotchPanelController, profiles: ProfileController, archive: CallArchive, replayFile: URL?) {
         self.notch = notch
         self.profiles = profiles
+        self.archive = archive
         self.replayFile = replayFile
     }
 
@@ -48,6 +52,10 @@ final class CallController {
                 show(display)
             }
             await run
+            // Un replay est un test : il n'est pas enregistré.
+            if replayFile == nil, let call = await pipeline.savedCall() {
+                await archive.record(call)
+            }
             // Call terminé : le menu propose d'en démarrer un autre.
             self.pipeline = nil
             isCallActive = false

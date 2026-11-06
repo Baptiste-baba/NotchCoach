@@ -85,6 +85,11 @@ public actor ConversationCoordinator {
     }
 
     /// Arrête le suivi de la session et termine le flux d'affichage.
+    /// Transcription complète du call, depuis son début.
+    public func transcript() -> [TranscriptSegment] {
+        fatalError("TODO")
+    }
+
     public func stop() {
         isStopped = true
         sessionTasks.forEach { $0.cancel() }
