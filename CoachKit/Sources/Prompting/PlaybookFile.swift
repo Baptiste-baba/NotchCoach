@@ -31,18 +31,17 @@ public struct PlaybookFile: Equatable, Sendable {
     /// Lit le playbook, après avoir créé le fichier s'il n'existe pas encore.
     public func load() throws(PromptingError) -> Playbook {
         try createIfMissing()
-        let data: Data
         do {
-            data = try Data(contentsOf: url)
+            return Playbook(markdown: try MarkdownFileReader.read(url, maximumLength: Self.maximumLength))
         } catch {
-            throw .playbookUnreadable(reason: error.localizedDescription)
+            switch error {
+            case .unreadable(let reason):
+                throw .playbookUnreadable(reason: reason)
+            case .notUTF8:
+                throw .playbookNotUTF8
+            case .tooLong(let characterCount):
+                throw .playbookTooLong(characterCount: characterCount, limit: Self.maximumLength)
+            }
         }
-        guard let markdown = String(data: data, encoding: .utf8) else {
-            throw .playbookNotUTF8
-        }
-        guard markdown.count <= Self.maximumLength else {
-            throw .playbookTooLong(characterCount: markdown.count, limit: Self.maximumLength)
-        }
-        return Playbook(markdown: markdown)
     }
 }

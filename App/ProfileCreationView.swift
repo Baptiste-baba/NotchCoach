@@ -1,3 +1,4 @@
+import Prompting
 import SwiftUI
 
 /// Fenêtre « Nouveau profil » : un nom et une description de la situation, à partir desquels Claude écrit le prompt.
@@ -8,7 +9,9 @@ struct ProfileCreationView: View {
     @Environment(\.dismissWindow) private var dismissWindow
     @State private var name = ""
     @State private var description = ""
-    @State private var isGenerating = false
+    /// Génération en cours ; annulée par « Annuler » ou à la fermeture de la fenêtre.
+    @State private var generation: Task<Void, Never>?
+    @State private var errorMessage: String?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -28,12 +31,23 @@ struct ProfileCreationView: View {
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
+            .disabled(isGenerating)
+            if let errorMessage {
+                Text(errorMessage)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
             HStack {
                 if isGenerating {
                     ProgressView().controlSize(.small)
-                    Text("Claude écrit le prompt, environ 30 secondes…").foregroundStyle(.secondary)
+                    Text("Claude écrit le prompt…").foregroundStyle(.secondary)
                 }
                 Spacer()
+                if isGenerating {
+                    Button("Annuler") {
+                        generation?.cancel()
+                    }
+                }
                 Button("Créer le profil", action: create)
                     .keyboardShortcut(.defaultAction)
                     .disabled(!canCreate)
@@ -41,7 +55,12 @@ struct ProfileCreationView: View {
         }
         .padding(20)
         .frame(width: 460)
+        .onDisappear {
+            generation?.cancel()
+        }
     }
+
+    private var isGenerating: Bool { generation != nil }
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
 
@@ -50,13 +69,20 @@ struct ProfileCreationView: View {
     }
 
     private func create() {
-        isGenerating = true
-        Task {
-            try? await profiles.createProfile(named: trimmedName, description: description)
-            isGenerating = false
-            name = ""
-            description = ""
-            dismissWindow(id: Self.windowID)
+        errorMessage = nil
+        generation = Task {
+            defer { generation = nil }
+            do throws(PromptingError) {
+                try await profiles.createProfile(named: trimmedName, description: description)
+                name = ""
+                description = ""
+                dismissWindow(id: Self.windowID)
+            } catch .generationCancelled {
+                // Annulée par l'utilisateur : la saisie est gardée, sans message.
+            } catch {
+                // La saisie est gardée, pour corriger le nom ou réessayer.
+                errorMessage = error.localizedDescription
+            }
         }
     }
 }

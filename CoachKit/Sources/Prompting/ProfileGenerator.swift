@@ -15,24 +15,31 @@ public struct ProfileGenerator: Sendable {
     }
 
     /// Prompt et playbook de départ d'un profil adapté à `description` (« entretien technique pour un poste de
-    /// développeur iOS », par exemple). Prend une trentaine de secondes.
+    /// développeur iOS », par exemple). Prend de quelques secondes à une minute. L'annulation de la tâche arrête Claude
+    /// et lève `generationCancelled`.
     public func generate(description: String) async throws(PromptingError) -> ProfileContent {
         let completion = ClaudeCompletion(options: ClaudeSessionOptions(model: Self.model, systemPrompt: instructions))
         let response: String
         do {
             response = try await completion.complete(description)
+        } catch is CancellationError {
+            throw .generationCancelled
         } catch {
-            fatalError("TODO couche Erreurs")
+            throw .generationFailed(reason: error.localizedDescription)
         }
         return try Self.content(from: response)
     }
 
-    /// Contenu du profil lu dans la réponse de Claude : le texte des blocs `<prompt>` et `<playbook>`.
+    /// Contenu du profil lu dans la réponse de Claude : le texte des blocs `<prompt>` et `<playbook>`. Le prompt est
+    /// indispensable ; sans bloc `<playbook>`, le profil démarre avec un playbook vide.
     static func content(from response: String) throws(PromptingError) -> ProfileContent {
-        guard let prompt = block(named: "prompt", in: response), let playbook = block(named: "playbook", in: response) else {
-            fatalError("TODO couche Erreurs")
+        guard let prompt = block(named: "prompt", in: response),
+              !prompt.isEmpty,
+              prompt.count <= Profile.maximumPromptLength
+        else {
+            throw .generationInvalid
         }
-        return ProfileContent(prompt: prompt, playbook: playbook)
+        return ProfileContent(prompt: prompt, playbook: block(named: "playbook", in: response) ?? "")
     }
 
     /// Texte entre `<name>` et `</name>`, sans les lignes vides autour ; `nil` si le bloc manque.

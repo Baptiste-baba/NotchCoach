@@ -31,9 +31,7 @@ final class CallController {
     /// Démarre un call avec le profil actif : la vraie capture, ou le fichier rejoué depuis le début en mode replay.
     func startCall() {
         guard pipeline == nil else { return }
-        // Le profil a pu être renommé ou supprimé dans le Finder depuis le dernier choix.
-        profiles.reload()
-        guard let profile = profiles.activeProfile else { return }
+        guard let profile = profiles.requireActiveProfile() else { return }
         let source: any AudioSource = if let replayFile { ReplayAudioSource(file: replayFile) } else { LiveAudioSource() }
         let pipeline = CallPipeline(
             source: source,

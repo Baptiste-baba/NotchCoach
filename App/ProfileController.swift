@@ -13,6 +13,8 @@ final class ProfileController {
     @ObservationIgnored private let store = ProfileStore()
     @ObservationIgnored private let generator = ProfileGenerator(instructions: BundledPrompt.text(named: "profile-generator"))
     @ObservationIgnored private var menuObserver: (any NSObjectProtocol)?
+    /// Échec de la création des profils fournis : la raison pour laquelle il n'y a aucun profil.
+    @ObservationIgnored private var defaultsCreationError: PromptingError?
 
     init() {
         // Les profils sont relus à chaque ouverture du menu : l'utilisateur a pu en ajouter, en renommer ou en
@@ -43,13 +45,27 @@ final class ProfileController {
     /// Crée les profils fournis avec l'app s'il n'y en a aucun, puis relit ceux qui sont enregistrés : l'utilisateur a
     /// pu en renommer ou en supprimer dans le Finder.
     func reload() {
+        // Relu à chaque ouverture du menu : l'échec est gardé pour la prochaine action, plutôt qu'une alerte à chaque
+        // fois.
         do {
             try store.createDefaultsIfEmpty(Self.defaultProfiles)
+            defaultsCreationError = nil
         } catch {
-            fatalError("TODO couche Erreurs")
+            defaultsCreationError = error
         }
         profiles = store.profiles()
         activeProfile = store.activeProfile()
+    }
+
+    /// Profil actif, relu sur le disque : il a pu être renommé ou supprimé dans le Finder. S'il n'y en a aucun, une
+    /// alerte en donne la raison.
+    func requireActiveProfile() -> Profile? {
+        reload()
+        if activeProfile == nil {
+            let reason = defaultsCreationError?.localizedDescription ?? "Le dossier des profils est vide."
+            showAlert("Aucun profil disponible", details: "\(reason)\n\n\(store.directory.path)")
+        }
+        return activeProfile
     }
 
     func activate(_ profile: Profile) {
@@ -59,15 +75,13 @@ final class ProfileController {
 
     /// Ouvre le prompt du profil actif dans l'éditeur par défaut.
     func editPrompt() {
-        reload()
-        guard let activeProfile else { return }
+        guard let activeProfile = requireActiveProfile() else { return }
         open(activeProfile.promptURL)
     }
 
     /// Ouvre le playbook du profil actif dans l'éditeur par défaut, après l'avoir recréé s'il a été supprimé.
     func editPlaybook() {
-        reload()
-        guard let activeProfile else { return }
+        guard let activeProfile = requireActiveProfile() else { return }
         do {
             try activeProfile.playbookFile.createIfMissing()
         } catch {
@@ -78,8 +92,10 @@ final class ProfileController {
     }
 
     /// Fait écrire par Claude un profil `name` adapté à `description`, l'enregistre et en fait le profil actif, puis
-    /// ouvre son playbook, à remplir.
+    /// ouvre son playbook, à remplir. L'annulation de la tâche arrête Claude et lève `generationCancelled`.
     func createProfile(named name: String, description: String) async throws(PromptingError) {
+        // Vérifié avant de faire attendre Claude pour un nom qui serait refusé.
+        try store.checkNewProfileName(name)
         let content = try await generator.generate(description: description)
         let profile = try store.create(named: name, content: content)
         reload()
