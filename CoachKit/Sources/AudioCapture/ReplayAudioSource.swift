@@ -92,7 +92,9 @@ public actor ReplayAudioSource: AudioSource {
 }
 
 /// Lit un fichier audio stéréo par blocs, rééchantillonnés en 16 kHz Float32 et séparés en deux canaux.
-private final class StereoReader {
+final class StereoReader {
+    /// Erreur qui a interrompu la lecture avant la fin du fichier ; `nil` tant qu'il n'y en a pas eu.
+    private(set) var readFailure: (any Error)?
     private let file: AVAudioFile
     private let converter: AVAudioConverter
     private let output: AVAudioPCMBuffer
@@ -121,6 +123,11 @@ private final class StereoReader {
         output.frameLength = 0
         var conversionError: NSError?
         let status = converter.convert(to: output, error: &conversionError) { [self] packetCount, inputStatus in
+            // Fin du fichier atteinte : une lecture de plus lèverait une erreur (-39, fin de fichier) au lieu de ne
+            // rien lire.
+            if file.framePosition >= file.length {
+                reachedEnd = true
+            }
             guard !reachedEnd,
                   let input = AVAudioPCMBuffer(pcmFormat: file.processingFormat, frameCapacity: packetCount)
             else {
@@ -130,6 +137,7 @@ private final class StereoReader {
             do {
                 try file.read(into: input, frameCount: packetCount)
             } catch {
+                readFailure = error
                 logger.error("Lecture du fichier de replay interrompue : \(error.localizedDescription, privacy: .public)")
             }
             guard input.frameLength > 0 else {
