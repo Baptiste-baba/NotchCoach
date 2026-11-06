@@ -18,7 +18,7 @@ public struct TranscriptBuffer {
     /// de parole coupée, par exemple) n'apporte rien au prompt et n'est pas gardé.
     /// Tous les segments reçus depuis le début du call, envoyés ou non, dans l'ordre de leur début.
     public var segments: [TranscriptSegment] {
-        fatalError("TODO")
+        entries.map(\.segment)
     }
 
     public mutating func append(_ segment: TranscriptSegment) {

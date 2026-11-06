@@ -1,4 +1,5 @@
 import AudioCapture
+import Foundation
 import CallArchive
 import ClaudeSession
 import Conversation
@@ -28,6 +29,12 @@ public actor CallPipeline {
     /// `run()` attend ici l'arrêt, une fois la source terminée.
     private var stopWaiter: CheckedContinuation<Void, Never>?
     private var isStopped = false
+    /// Prompt et playbook du profil, tels que lus au démarrage : enregistrés avec le call.
+    private var loadedPrompt = ""
+    private var loadedPlaybook = Playbook(markdown: "")
+    /// Début et fin du call, à l'heure de l'horloge murale : la date et la durée du call enregistré.
+    private var startDate: Date?
+    private var endDate: Date?
 
     /// `models` peut servir d'un call à l'autre : seul le premier les charge. `profile` : profil actif au démarrage du
     /// call. `coachFrame` : partie technique du system prompt, avec les emplacements `{{prompt}}` et `{{playbook}}`.
@@ -65,6 +72,8 @@ public actor CallPipeline {
             playbookError = error
         }
         let systemPrompt = SystemPrompt.text(frame: coachFrame, prompt: prompt, playbook: playbook)
+        loadedPrompt = prompt
+        loadedPlaybook = playbook
         let session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: systemPrompt))
         self.session = session
         do {
@@ -87,6 +96,7 @@ public actor CallPipeline {
 
         // Instant zéro du call, pris juste avant la source : celui des segments, auquel se rapporte la latence.
         let coordinator = ConversationCoordinator(session: session, callStart: .now)
+        startDate = Date()
         self.coordinator = coordinator
         await coordinator.start()
         let forwarding = Task { [displaysContinuation] in
@@ -135,13 +145,26 @@ public actor CallPipeline {
     /// Call à enregistrer, une fois `run()` revenu : sa transcription et le profil utilisé. `nil` si personne n'a
     /// parlé, ou si le call n'a pas pu démarrer.
     public func savedCall() async -> SavedCall? {
-        fatalError("TODO")
+        guard let coordinator, let startDate else { return nil }
+        let transcript = await coordinator.transcript().compactMap { segment -> SavedCall.Line? in
+            let text = segment.text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            return SavedCall.Line(speaker: segment.speaker == .me ? .me : .interlocutor, start: segment.start, text: text)
+        }
+        guard !transcript.isEmpty else { return nil }
+        return SavedCall(
+            startDate: startDate,
+            duration: (endDate ?? Date()).timeIntervalSince(startDate),
+            profile: SavedCall.Profile(name: profile.name, prompt: loadedPrompt, playbook: loadedPlaybook.markdown),
+            transcript: transcript
+        )
     }
 
     /// Arrête le call tout de suite : la source, la conversation et Claude.
     public func stop() async {
         guard !isStopped else { return }
         isStopped = true
+        endDate = Date()
         startFailureDisplay?.cancel()
         stopWaiter?.resume()
         stopWaiter = nil

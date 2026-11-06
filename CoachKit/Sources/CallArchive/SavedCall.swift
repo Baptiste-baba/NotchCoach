@@ -40,7 +40,7 @@ public struct SavedCall: Codable, Equatable, Identifiable, Sendable {
     public enum RecapStatus: Codable, Equatable, Sendable {
         /// En cours d'écriture. Enregistré tel quel si l'app se ferme avant la fin : il est alors à réécrire.
         case writing
-        case written(CallRecap)
+        case written(recap: CallRecap)
         /// Claude n'a pas pu l'écrire ; la transcription reste disponible.
         case failed(reason: String)
     }
@@ -66,5 +66,13 @@ public struct SavedCall: Codable, Equatable, Identifiable, Sendable {
         self.profile = profile
         self.transcript = transcript
         self.recapStatus = recapStatus
+    }
+}
+
+extension SavedCall {
+    /// Réplique citée à `moment` (le début d'une réplique, à la seconde près, comme dans « 04:12 ») : la dernière qui
+    /// commence au plus tard à cette seconde. `nil` s'il n'y en a aucune. Logique pure.
+    public func lineIndex(at moment: TimeInterval) -> Int? {
+        transcript.lastIndex { $0.start.rounded(.down) <= moment }
     }
 }

@@ -87,7 +87,7 @@ public actor ConversationCoordinator {
     /// Arrête le suivi de la session et termine le flux d'affichage.
     /// Transcription complète du call, depuis son début.
     public func transcript() -> [TranscriptSegment] {
-        fatalError("TODO")
+        buffer.segments
     }
 
     public func stop() {

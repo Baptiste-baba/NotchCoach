@@ -28,7 +28,7 @@ let package = Package(
             name: "Call",
             dependencies: ["AudioCapture", "Transcription", "Conversation", "ClaudeSession", "Prompting", "CallArchive"]
         ),
-        .target(name: "CallArchive", dependencies: ["ClaudeSession"]),
+        .target(name: "CallArchive", dependencies: ["ClaudeSession", "Prompting"]),
         .target(name: "CallsUI", dependencies: ["CallArchive"]),
         .testTarget(name: "NotchUITests", dependencies: ["NotchUI"]),
         .testTarget(name: "ClaudeSessionTests", dependencies: ["ClaudeSession"]),

@@ -17,6 +17,7 @@ import SwiftUI
         Window("Calls enregistrés", id: CallsWindowView.windowID) {
             CallsWindowView(library: appDelegate.callLibrary)
         }
+        .defaultSize(width: 1000, height: 660)
         // Jamais au lancement, ni à la fin d'un call : seulement depuis le menu.
         .defaultLaunchBehavior(.suppressed)
     }
