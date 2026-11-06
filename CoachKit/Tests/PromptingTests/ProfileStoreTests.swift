@@ -121,6 +121,41 @@ struct ProfileStoreTests {
         #expect(fixture.store.activeProfile()?.name == "Entretien")
     }
 
+    // MARK: Chargement
+
+    @Test func loadCreatesTheDefaultsAndGivesTheProfilesAndTheActiveOne() throws {
+        let fixture = try Fixture()
+
+        let snapshot = fixture.store.load(creatingIfEmpty: defaultProfiles())
+
+        #expect(snapshot.profiles.map(\.name) == ["Entretien", "Vente"])
+        #expect(snapshot.activeProfile?.name == "Vente")
+        #expect(snapshot.unavailabilityReason == nil)
+    }
+
+    @Test func loadKeepsTheReasonWhenTheDefaultsCannotBeCreated() throws {
+        let fixture = try Fixture()
+        let parent = fixture.temporaryDirectory.url.path
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: parent)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: parent) }
+
+        let snapshot = fixture.store.load(creatingIfEmpty: defaultProfiles())
+
+        #expect(snapshot.activeProfile == nil)
+        #expect(snapshot.unavailabilityReason?.hasPrefix("Le profil n'a pas pu être enregistré : ") == true)
+    }
+
+    @Test func loadExplainsAnEmptyFolderWhenEveryDefaultWasSkipped() throws {
+        let fixture = try Fixture()
+        try fixture.makeFolder("Vente", prompt: nil)
+        try fixture.makeFolder("Entretien", prompt: nil)
+
+        let snapshot = fixture.store.load(creatingIfEmpty: defaultProfiles())
+
+        #expect(snapshot.profiles.isEmpty)
+        #expect(snapshot.unavailabilityReason == "Le dossier des profils est vide.")
+    }
+
     // MARK: Profil actif
 
     @Test func activeProfileIsKeptFromOneLaunchToTheNext() throws {

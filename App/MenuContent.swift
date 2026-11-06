@@ -19,7 +19,7 @@ struct MenuContent: View {
         }
         Divider()
         Picker("Profil", selection: activeProfile) {
-            ForEach(profiles.profiles) { profile in
+            ForEach(profiles.snapshot.profiles) { profile in
                 Text(profile.name).tag(Optional(profile))
             }
         }
@@ -52,7 +52,7 @@ struct MenuContent: View {
 
     private var activeProfile: Binding<Profile?> {
         Binding(
-            get: { profiles.activeProfile },
+            get: { profiles.snapshot.activeProfile },
             set: { profile in
                 if let profile {
                     profiles.activate(profile)

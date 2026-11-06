@@ -5,16 +5,12 @@ import Prompting
 /// Actions du menu sur les profils : choisir le profil actif, ouvrir son prompt ou son playbook, en créer un nouveau.
 @Observable
 final class ProfileController {
-    /// Profils enregistrés, triés par nom : le sous-menu « Profil ».
-    private(set) var profiles: [Profile] = []
-    /// Profil du prochain call ; `nil` s'il n'y en a aucun.
-    private(set) var activeProfile: Profile?
+    /// Profils enregistrés et profil actif : le sous-menu « Profil ».
+    private(set) var snapshot = ProfileSnapshot()
 
     @ObservationIgnored private let store = ProfileStore()
     @ObservationIgnored private let generator = ProfileGenerator(instructions: BundledPrompt.text(named: "profile-generator"))
     @ObservationIgnored private var menuObserver: (any NSObjectProtocol)?
-    /// Échec de la création des profils fournis : la raison pour laquelle il n'y a aucun profil.
-    @ObservationIgnored private var defaultsCreationError: PromptingError?
 
     init() {
         // Les profils sont relus à chaque ouverture du menu : l'utilisateur a pu en ajouter, en renommer ou en
@@ -28,49 +24,25 @@ final class ProfileController {
         }
     }
 
-    /// Profils créés au premier lancement. Le premier devient actif.
-    private static var defaultProfiles: KeyValuePairs<String, ProfileContent> {
-        [
-            "Vente": ProfileContent(
-                prompt: BundledPrompt.text(named: "default-sales-prompt"),
-                playbook: BundledPrompt.text(named: "default-sales-playbook")
-            ),
-            "Entretien": ProfileContent(
-                prompt: BundledPrompt.text(named: "default-interview-prompt"),
-                playbook: BundledPrompt.text(named: "default-interview-playbook")
-            ),
-        ]
-    }
-
     /// Crée les profils fournis avec l'app s'il n'y en a aucun, puis relit ceux qui sont enregistrés : l'utilisateur a
     /// pu en renommer ou en supprimer dans le Finder.
     func reload() {
-        // Relu à chaque ouverture du menu : l'échec est gardé pour la prochaine action, plutôt qu'une alerte à chaque
-        // fois.
-        do {
-            try store.createDefaultsIfEmpty(Self.defaultProfiles)
-            defaultsCreationError = nil
-        } catch {
-            defaultsCreationError = error
-        }
-        profiles = store.profiles()
-        activeProfile = store.activeProfile()
+        snapshot = store.load(creatingIfEmpty: DefaultProfiles.all)
     }
 
     /// Profil actif, relu sur le disque : il a pu être renommé ou supprimé dans le Finder. S'il n'y en a aucun, une
     /// alerte en donne la raison.
     func requireActiveProfile() -> Profile? {
         reload()
-        if activeProfile == nil {
-            let reason = defaultsCreationError?.localizedDescription ?? "Le dossier des profils est vide."
+        if let reason = snapshot.unavailabilityReason {
             showAlert("Aucun profil disponible", details: "\(reason)\n\n\(store.directory.path)")
         }
-        return activeProfile
+        return snapshot.activeProfile
     }
 
     func activate(_ profile: Profile) {
         store.activate(profile)
-        activeProfile = profile
+        snapshot.activeProfile = profile
     }
 
     /// Ouvre le prompt du profil actif dans l'éditeur par défaut.

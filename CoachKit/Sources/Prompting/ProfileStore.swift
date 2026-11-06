@@ -34,6 +34,19 @@ public struct ProfileStore {
         }
     }
 
+    /// Crée les profils `defaults` s'il n'y en a aucun, puis relit les profils enregistrés et le profil actif. Ne lève
+    /// jamais : l'échec de la création est gardé dans le résultat, pour l'expliquer à la prochaine action de
+    /// l'utilisateur plutôt qu'à chaque lecture.
+    public func load(creatingIfEmpty defaults: KeyValuePairs<String, ProfileContent>) -> ProfileSnapshot {
+        var defaultsCreationError: PromptingError?
+        do {
+            try createDefaultsIfEmpty(defaults)
+        } catch {
+            defaultsCreationError = error
+        }
+        return ProfileSnapshot(profiles: profiles(), activeProfile: activeProfile(), defaultsCreationError: defaultsCreationError)
+    }
+
     /// Profils enregistrés, triés par nom. Un dossier sans `prompt.md` n'est pas un profil.
     public func profiles() -> [Profile] {
         let folders = (try? FileManager.default.contentsOfDirectory(
