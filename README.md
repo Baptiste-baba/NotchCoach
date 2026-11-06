@@ -1,6 +1,6 @@
 # NotchCoach
 
-App macOS de barre de menus qui écoute un call commercial (Meet, Zoom, Teams…), le transcrit en local et affiche dans la notch de courtes suggestions de réponse générées par Claude, au moment où le prospect finit de parler.
+App macOS de barre de menus qui écoute un call (Meet, Zoom, Teams…), le transcrit en local et affiche dans la notch de courtes suggestions de réponse générées par Claude, au moment où votre interlocuteur finit de parler. Elle sert à la vente comme aux entretiens d'embauche : chaque usage a son profil.
 
 > Projet personnel, en cours de développement. L'app est pensée pour un usage individuel, en français, avec un abonnement Claude. Aucune clé d'API n'est utilisée.
 
@@ -15,7 +15,7 @@ Micro (vous) ────────────┘   (Parakeet, par canal)   (
 1. **Deux canaux audio.** L'audio du Mac, capté avec ScreenCaptureKit, est la voix du prospect. Le micro, capté avec AVAudioEngine, est la vôtre. Cette séparation tient lieu de diarisation : aucun modèle n'a à deviner qui parle.
 2. **Transcription locale**, sur le Neural Engine. Silero VAD repère la fin de chaque prise de parole, puis Parakeet Ultra (via [FluidAudio](https://github.com/FluidInference/FluidAudio)) la transcrit d'un coup. Aucun audio ne quitte le Mac.
 3. **Déclenchement.** Quand le prospect finit une phrase, les nouvelles répliques du call partent vers une session `claude` lancée au début du call et gardée prête. Il part au plus une demande toutes les 5 s.
-4. **Affichage.** La réponse s'écrit mot par mot dans la notch : une phrase prête à dire au prospect, puis 3 points clés (arguments ou questions) à développer vous-même, appuyés sur votre playbook.
+4. **Affichage.** La réponse s'écrit mot par mot dans la notch : une phrase prête à dire au prospect, puis 3 points clés (arguments ou questions) à développer vous-même, appuyés sur le playbook du profil actif.
 
 **Objectif de latence :** 3 s au plus entre la fin de la phrase du prospect et le premier mot affiché. Le format actuel, une phrase puis trois points clés, le dépasse : il faut compter 4 à 6 s en replay, car Claude réfléchit plus longtemps avant d'écrire. C'est un choix assumé pour des suggestions plus utiles, et un délai à réduire. La première suggestion d'un call est souvent la plus lente.
 
@@ -23,7 +23,9 @@ Micro (vous) ────────────┘   (Parakeet, par canal)   (
 
 - **Suggestions dans la notch.** Elles s'intègrent à la notch du MacBook. Sans notch, sur un écran externe principal, elles s'affichent dans une pilule centrée en haut de l'écran.
 - **Historique du call.** La notch reste ouverte de la première suggestion à la fin du call et montre la dernière suggestion. Les précédentes se retrouvent en faisant défiler vers le haut.
-- **Playbook.** Un fichier Markdown décrit votre offre, votre cible, vos prix et vos réponses validées aux objections. Claude s'appuie dessus et n'invente jamais un prix ni un engagement qui n'y figure pas.
+- **Profils.** Un profil par usage, par exemple « Vente » et « Entretien » : chacun a son prompt (le rôle de Claude et le format de ses réponses) et son playbook (vos informations). Vous passez de l'un à l'autre dans le menu, avant un call.
+- **Playbook.** Un fichier Markdown par profil : votre offre, vos prix et vos réponses validées pour la vente, votre parcours et vos projets pour un entretien. Claude s'appuie dessus et n'invente jamais un prix ni un engagement qui n'y figure pas.
+- **Nouveau profil écrit par Claude.** Décrivez la situation en une phrase : Claude Opus écrit le prompt du profil et les rubriques de son playbook.
 - **Mode replay.** Il rejoue un fichier audio à la place d'un vrai call, pour tester et mesurer sans être au téléphone.
 - **Robustesse.** Chaque partie se relance seule après une coupure :
   - Claude : jusqu'à 5 tentatives, puis une nouvelle à la phrase suivante du prospect ;
@@ -92,17 +94,21 @@ defaults write io.github.baptiste-baba.NotchCoach ClaudeBinaryPath /chemin/vers/
 
 Sans l'une de ces autorisations, le call ne démarre pas, et la notch dit en rouge laquelle manque. Un écran d'accueil qui guide ces étapes est prévu.
 
-### Le playbook
+### Les profils
 
-Le menu **« Modifier le playbook… »** ouvre `~/Library/Application Support/NotchCoach/playbook.md` dans votre éditeur Markdown par défaut. S'il n'existe pas encore, il est créé avec quatre rubriques vides : Offre, Cible, Pricing, Objections fréquentes et réponses validées. Le modèle ne contient volontairement aucun exemple : Claude pourrait sinon citer un faux prix à votre prospect.
+Chaque profil est un dossier de `~/Library/Application Support/NotchCoach/Profils/`, qui contient deux fichiers Markdown : `prompt.md` et `playbook.md`. Au premier lancement, l'app crée « Vente », actif, et « Entretien ».
 
-- **Remplissez-le avec vos vrais éléments.** Claude reprend vos réponses validées quand elles conviennent. Il n'invente jamais un prix, une remise, un chiffre, une fonctionnalité ou un engagement absent du playbook : sans cette information, il reste général ou propose une question.
-- **Il est lu au début de chaque call** : une modification compte à partir du call suivant.
-- **Limites** : 50 000 caractères, enregistrés en UTF-8. Un playbook illisible ou trop long est ignoré : le call démarre sans lui, et la notch en donne la raison en rouge.
+- **Choisir un profil** : sous-menu **« Profil »**, où le profil actif est coché. Le choix est gardé d'un lancement à l'autre, et compte à partir du call suivant.
+- **Modifier le prompt…** ouvre le prompt du profil actif dans votre éditeur Markdown par défaut. Il décrit le rôle de Claude, son objectif, le ton et le format des réponses. L'app y ajoute elle-même une partie technique, que vous ne modifiez pas : l'insertion du playbook, le format de la transcription, le « - » qui veut dire « rien à suggérer », et la protection contre les instructions du prospect. Un prompt vide, illisible, pas en UTF-8 ou de plus de 20 000 caractères empêche le call de démarrer, et la notch en donne la raison en rouge.
+- **Modifier le playbook…** ouvre le playbook du profil actif. Remplissez-le avec vos vrais éléments : Claude reprend vos réponses quand elles conviennent, et n'invente jamais un prix, une remise, un chiffre ou un engagement qui n'y figure pas. Les rubriques fournies sont vides, sans aucun exemple : Claude pourrait sinon citer un faux prix à votre prospect. Limites : 50 000 caractères, en UTF-8. Un playbook illisible ou trop long est ignoré : le call démarre sans lui, et la notch en donne la raison en rouge.
+- **Nouveau profil…** ouvre une fenêtre : donnez un nom, décrivez la situation (qui vous êtes, avec qui vous parlez, ce que vous attendez des suggestions), puis cliquez sur **« Créer le profil »**. Claude Opus écrit le prompt et les rubriques vides du playbook, en quelques secondes. Le profil devient actif, et son playbook s'ouvre pour que vous le remplissiez. « Annuler », ou la fermeture de la fenêtre, arrête la génération.
+- **Renommer ou supprimer un profil** se fait dans le Finder, sur son dossier : le menu en tient compte à sa prochaine ouverture. Si vous les supprimez tous, l'app recrée « Vente » et « Entretien ».
+
+Prompt et playbook sont lus au début de chaque call : une modification compte à partir du call suivant.
 
 ### Pendant un call
 
-1. **Démarrage.** Dans la barre de menus, cliquez sur l'icône NotchCoach, puis sur **« Démarrer un call »**. Au premier call, l'app charge les modèles de transcription (et les télécharge au tout premier lancement), puis lance Claude. Ensuite, les modèles restent en mémoire et les calls suivants démarrent plus vite.
+1. **Démarrage.** Dans la barre de menus, cliquez sur l'icône NotchCoach, choisissez le profil, puis cliquez sur **« Démarrer un call »**. Au premier call, l'app charge les modèles de transcription (et les télécharge au tout premier lancement), puis lance Claude. Ensuite, les modèles restent en mémoire et les calls suivants démarrent plus vite.
 2. **Information du prospect.** Prévenez-le qu'un assistant prend des notes (voir [Usage responsable](#usage-responsable)).
 3. **Ce que montre la notch.** Elle se déplie à la première suggestion et reste ouverte jusqu'à la fin du call.
    - Elle affiche la dernière suggestion. Faites défiler vers le haut, avec le trackpad au-dessus de la notch, pour relire les précédentes. Une nouvelle suggestion vous ramène en bas.
@@ -137,7 +143,9 @@ Dans un build Debug, le menu **« Tester Claude »** envoie un prompt fixe à Cl
 
 - **Aucun audio n'est écrit sur disque**, jamais.
 - **La transcription se fait en local**, sur le Mac.
-- **Un seul flux quitte le Mac** : le texte de la conversation et votre playbook, envoyés à Anthropic par le CLI `claude` pour générer les suggestions, selon les conditions de votre compte Claude.
+- **Deux flux quittent le Mac**, envoyés à Anthropic par le CLI `claude`, selon les conditions de votre compte Claude :
+  - le texte de la conversation, avec le prompt et le playbook du profil, pour générer les suggestions ;
+  - la description d'un nouveau profil, pour en écrire le prompt.
 - **Tout est effacé à la fin du call** : la transcription et l'historique ne vivent qu'en mémoire. La session `claude` est lancée sans persistance : rien n'est écrit dans `~/.claude/projects/`.
 - **Les journaux masquent le contenu.** NotchCoach journalise avec `os.Logger`, et le contenu des transcriptions et des suggestions y est toujours masqué (`privacy: .private`).
 
@@ -151,12 +159,20 @@ claude -p --input-format stream-json --output-format stream-json --verbose --inc
   --system-prompt <prompt>
 ```
 
+La génération d'un nouveau profil utilise les mêmes options d'isolation, en une seule requête, avec Claude Opus : la description passe par l'entrée standard, et la réponse arrive en un seul objet JSON.
+
+```
+claude -p --output-format json \
+  --model opus --tools "" --strict-mcp-config --setting-sources "" --no-session-persistence \
+  --system-prompt <prompt>
+```
+
 - **Rien de votre configuration n'est chargé** : aucun outil, aucun serveur MCP, aucun réglage, plugin ni hook. Le prompt système de Claude Code est remplacé par celui du coach.
 - **Le process est lancé directement, jamais via un shell**, avec un environnement réduit à `HOME`, `USER`, `PATH` et `LANG`. `ANTHROPIC_API_KEY` n'est jamais transmise : l'usage reste celui de votre abonnement.
 - **La conversation passe uniquement par l'entrée standard**, jamais en argument visible avec `ps`. Le prompt système, playbook compris, est lui passé en argument.
 - **Il tourne dans un dossier de travail dédié et vide** : `~/Library/Application Support/NotchCoach/ClaudeWorkingDirectory`.
 - **Il s'arrête avec le call et avec l'app**, même si l'app plante, car son entrée standard se ferme alors.
-- **Le prompt du coach** demande à Claude de traiter les répliques du prospect comme des données à analyser, jamais comme des instructions.
+- **La partie technique du prompt**, ajoutée par l'app à celui de chaque profil, demande à Claude de traiter les répliques du prospect comme des données à analyser, jamais comme des instructions. Modifier ou générer le prompt d'un profil ne peut pas la retirer.
 
 **Dépendances.** La seule dépendance externe, FluidAudio, est épinglée à la version 0.18.0, sans synthèse vocale ni diarisation. Les modèles téléchargés depuis Hugging Face sont figés sur un commit précis.
 
@@ -167,21 +183,24 @@ claude -p --input-format stream-json --output-format stream-json --verbose --inc
 
 ## Architecture
 
-Toute la logique vit dans le package Swift local `CoachKit`. La cible `App` reste mince : barre de menus, cycle de vie de l'app, démarrage et arrêt des calls.
+Toute la logique vit dans le package Swift local `CoachKit`. La cible `App` reste mince : barre de menus, cycle de vie de l'app, démarrage et arrêt des calls, fenêtre de création d'un profil.
 
 | Module | Rôle |
 |---|---|
 | `AudioCapture` | Capture du micro (AVAudioEngine) et de l'audio du Mac (ScreenCaptureKit), convertis en 16 kHz mono. `LiveAudioSource` (vrai call) et `ReplayAudioSource` (fichier) suivent le protocole `AudioSource`. |
 | `Transcription` | `ParakeetEngine` (FluidAudio), derrière le protocole `TranscriptionEngine` : un moteur par canal, des modèles partagés. |
 | `Conversation` | `TranscriptBuffer` (répliques pas encore envoyées), `TriggerDetector` (quand demander une suggestion), `CallHistory` (ce que montre la notch) et `ConversationCoordinator`, qui les orchestre. |
-| `ClaudeSession` | Le process `claude` et son protocole `stream-json` : streaming, interruption d'une réponse devenue obsolète, redémarrage avec backoff. Le protocole `LLMSession` permet une fausse session dans les tests. |
-| `Prompting` | Le playbook et l'assemblage du prompt système. |
-| `Call` | `CallPipeline` relie, pendant un call, la source audio, la transcription, la conversation, le playbook et Claude. |
+| `ClaudeSession` | Le process `claude` et son protocole `stream-json` : streaming, interruption d'une réponse devenue obsolète, redémarrage avec backoff. Le protocole `LLMSession` permet une fausse session dans les tests. `ClaudeCompletion` fait une requête unique au CLI, avec la même isolation. |
+| `Prompting` | Les profils (`ProfileStore`, prompt et playbook), leur génération par Claude (`ProfileGenerator`) et l'assemblage du prompt système. |
+| `Call` | `CallPipeline` relie, pendant un call, la source audio, la transcription, la conversation, le profil actif et Claude. |
 | `NotchUI` | Le panel de la notch : un `NSPanel` non activant, placé au-dessus de la barre de menus et invisible au partage d'écran, avec la vue SwiftUI de l'historique. |
 
 Le projet utilise Swift 6 en mode de concurrence strict. Chaque étape est un `actor`, les étapes communiquent par `AsyncStream`, et seule l'interface tourne sur le `@MainActor`.
 
-Les prompts vivent dans des fichiers dédiés : `App/Prompts/coach-system.md` contient les consignes du coach, avec l'emplacement `{{playbook}}`, et `App/Prompts/playbook-template.md` le modèle du playbook.
+Les prompts vivent dans des fichiers dédiés, dans `App/Prompts/` :
+- `coach-frame.md` : la partie technique du prompt système, avec les emplacements `{{prompt}}` (le prompt du profil) et `{{playbook}}` ;
+- `default-sales-prompt.md` et `default-sales-playbook.md`, `default-interview-prompt.md` et `default-interview-playbook.md` : les profils créés au premier lancement ;
+- `profile-generator.md` : les consignes données à Claude Opus pour écrire un nouveau profil.
 
 ## Structure du dépôt
 
@@ -199,7 +218,7 @@ NotchCoach/
 
 ## Développement
 
-**Tests.** Le package compte environ 170 tests Swift Testing. Ils couvrent toute la logique pure : déclencheur, répliques à envoyer, protocole `stream-json`, prompt, historique, coordinateur (avec une fausse session Claude) et conversion audio. La capture audio et l'interface se testent en replay et à la main.
+**Tests.** Le package compte environ 200 tests Swift Testing. Ils couvrent toute la logique pure : déclencheur, répliques à envoyer, protocole `stream-json`, profils et prompt, historique, coordinateur (avec une fausse session Claude) et conversion audio. La capture audio et l'interface se testent en replay et à la main.
 
 ```bash
 cd CoachKit && swift test
@@ -230,7 +249,8 @@ Le chemin complet `/usr/bin/log` est nécessaire, car zsh a sa propre commande `
 - **Prévu :**
   - un écran d'accueil pour les autorisations ;
   - un indicateur discret quand la notch est repliée (écoute en cours, Claude prêt ou non) ;
-  - des réglages, dont le chemin du CLI `claude`.
+  - des réglages, dont le chemin du CLI `claude` ;
+  - renommer, supprimer ou régénérer un profil depuis l'app.
 
 ## Licence
 
