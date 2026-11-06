@@ -42,6 +42,14 @@ public struct CallsWindowView: View {
         .onChange(of: library.periods) {
             selectMostRecentIfNeeded()
         }
+        .alert(
+            "Suppression impossible",
+            isPresented: Binding(get: { library.deletionError != nil }, set: { if !$0 { library.deletionError = nil } })
+        ) {
+            Button("OK") {}
+        } message: {
+            Text(library.deletionError ?? "")
+        }
     }
 
     /// À l'ouverture, ou après la suppression du call choisi : le plus récent.

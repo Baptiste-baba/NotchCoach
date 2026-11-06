@@ -8,6 +8,8 @@ import Observation
 public final class CallLibrary {
     /// Calls regroupés par période, du plus récent au plus ancien.
     public private(set) var periods: [CallPeriod] = []
+    /// Échec d'une suppression, à montrer dans la fenêtre ; `nil` une fois l'alerte fermée.
+    public var deletionError: String?
 
     @ObservationIgnored private let archive: CallArchive
     @ObservationIgnored private var isStarted = false
@@ -38,7 +40,13 @@ public final class CallLibrary {
     }
 
     public func delete(_ call: SavedCall) {
-        Task { try? await archive.delete(call.id) }
+        Task {
+            do {
+                try await archive.delete(call.id)
+            } catch {
+                deletionError = error.localizedDescription
+            }
+        }
     }
 
     public func retryRecap(of call: SavedCall) {

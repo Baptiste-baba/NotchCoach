@@ -22,7 +22,7 @@ public struct CallRecapGenerator: Sendable {
         do {
             response = try await completion.complete(Self.transcriptText(of: call))
         } catch {
-            fatalError("TODO couche Erreurs")
+            throw .recapFailed(reason: error.localizedDescription)
         }
         return try Self.recap(from: response)
     }
@@ -43,12 +43,14 @@ public struct CallRecapGenerator: Sendable {
     }
 
     /// Compte rendu lu dans la réponse JSON de Claude, entre sa première et sa dernière accolade : Claude l'entoure
-    /// parfois d'un bloc de code. Logique pure.
+    /// parfois d'un bloc de code. Un titre ou une vue d'ensemble vide le rend inutilisable. Logique pure.
     static func recap(from response: String) throws(CallArchiveError) -> CallRecap {
         guard let start = response.firstIndex(of: "{"), let end = response.lastIndex(of: "}"), start < end,
-              let answer = try? JSONDecoder().decode(Answer.self, from: Data(response[start...end].utf8))
+              let answer = try? JSONDecoder().decode(Answer.self, from: Data(response[start...end].utf8)),
+              !answer.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+              !answer.summary.overview.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else {
-            fatalError("TODO couche Erreurs")
+            throw .recapInvalid
         }
         return CallRecap(
             title: answer.title,

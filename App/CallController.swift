@@ -1,3 +1,4 @@
+import AppKit
 import AudioCapture
 import Call
 import CallArchive
@@ -54,7 +55,11 @@ final class CallController {
             await run
             // Un replay est un test : il n'est pas enregistré.
             if replayFile == nil, let call = await pipeline.savedCall() {
-                await archive.record(call)
+                do throws(CallArchiveError) {
+                    try await archive.record(call)
+                } catch {
+                    showRecordFailure(error)
+                }
             }
             // Call terminé : le menu propose d'en démarrer un autre.
             self.pipeline = nil
@@ -66,6 +71,17 @@ final class CallController {
     func stopCall() {
         guard let pipeline else { return }
         Task { await pipeline.stop() }
+    }
+
+    /// Un call non enregistré serait perdu sans que l'utilisateur le sache : une alerte le dit.
+    private func showRecordFailure(_ error: CallArchiveError) {
+        let alert = NSAlert()
+        alert.alertStyle = .warning
+        alert.messageText = "Call non enregistré"
+        alert.informativeText = error.localizedDescription
+        // L'app n'a pas de fenêtre active : sans ça, l'alerte resterait derrière celle de l'app active.
+        NSApp.activate()
+        alert.runModal()
     }
 
     private func show(_ display: CallDisplay) {

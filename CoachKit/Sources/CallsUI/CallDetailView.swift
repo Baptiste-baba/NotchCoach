@@ -82,6 +82,7 @@ struct CallDetailView: View {
             } actions: {
                 Button("Réessayer", action: onRetry)
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 }
