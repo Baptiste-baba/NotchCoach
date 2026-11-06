@@ -48,6 +48,8 @@ Micro ─────────┘     (par canal)    (buffer + trigger)
 
 Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule la couche UI est sur le `@MainActor`.
 
+À la fin du call, sa transcription passe à `CallArchive`, qui l'enregistre et en fait écrire le résumé et le débrief ; la fenêtre `CallsUI` permet de les relire.
+
 ### Modules (package Swift local `CoachKit`)
 
 **AudioCapture**
@@ -98,6 +100,20 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Un call démarre et s'arrête depuis le menu (« Démarrer un call », « Arrêter le call »). En mode replay, il démarre au lancement de l'app, et « Démarrer un call » rejoue le fichier depuis le début. Le fichier fini, le call continue, notch dépliée avec tout son historique, jusqu'à « Arrêter le call ».
 - Les modèles de transcription sont chargés au premier call, puis gardés en mémoire pour les suivants.
 - Si le call ne peut pas démarrer, il ne se termine qu'une fois son message d'échec replié (20 s) : « Arrêter le call » l'efface aussitôt. `CallPipeline` décide de ce que la notch affiche jusqu'à la fin du call, qui la laisse toujours repliée.
+- À la fin du call, `CallPipeline` rend sa transcription complète, avec le profil utilisé (prompt et playbook lus au démarrage), pour `CallArchive`. Un replay, ou un call sans aucune parole transcrite, n'est pas enregistré.
+
+**CallArchive**
+- Chaque call est enregistré automatiquement à « Arrêter le call » : un fichier JSON par call dans `~/Library/Application Support/NotchCoach/Calls/`, avec sa date, son profil, sa durée, sa transcription (qui parle, à quel moment, le texte) et, une fois écrits, son titre, son résumé et son débrief.
+- Conservation : 6 mois, puis suppression automatique, vérifiée au lancement de l'app et à chaque enregistrement. L'utilisateur peut aussi supprimer un call depuis la fenêtre.
+- Le titre court (« Objection prix, Mme Martin »), le résumé et le débrief sont écrits en arrière-plan par Claude Opus, en un appel (`ClaudeCompletion`), à partir de la transcription, du prompt et du playbook du profil : le débrief peut ainsi relever une réponse du playbook que l'utilisateur n'a pas utilisée. Consignes dans `App/Prompts/call-recap.md` ; réponse en JSON, lue strictement.
+- Résumé : de quoi on a parlé, ce qui a été dit d'important, les décisions et les prochaines étapes. Débrief : ce qui a marché, et ce qui est à travailler, chaque point avec le moment de la transcription, la phrase de l'utilisateur et une meilleure formulation. Il s'adapte au profil (objections et closing pour la vente, qualité des réponses pour un entretien).
+- Si Claude échoue (réseau, limite d'usage), la transcription reste enregistrée, et la fenêtre propose « Réessayer ». Un résumé interrompu par la fermeture de l'app se relance de la même façon.
+
+**CallsUI**
+- Fenêtre « Calls enregistrés », ouverte depuis le menu (« Calls enregistrés… ») ; elle ne s'ouvre jamais d'elle-même à la fin d'un call.
+- À gauche, les calls du plus récent au plus ancien, regroupés par période (aujourd'hui, cette semaine, puis par mois) : titre, profil, durée, heure. Avant que le résumé ne soit écrit, le titre est la date du call.
+- À droite, trois onglets : Résumé, Débrief, Transcription. Dans le débrief, l'heure d'une phrase ouvre la transcription sur ce moment, surligné. Clic droit sur un call : « Supprimer le call », après confirmation.
+- Style : police système pour l'interface et la transcription, New York (serif d'Apple) pour le résumé et le débrief. Couleurs tirées de l'icône : violet `#6B4EFF` (sélection, répliques de l'utilisateur), encre `#16123A` (titres), étincelle verte `#3DD68C` (ce qui a marché) et jaune `#F2B705` (à travailler), seuls ornements du débrief. Transcription en script (heure, qui parle, texte), avec « Moi » et « Interlocuteur ».
 
 **NotchUI**
 - `NSPanel` avec `.nonactivatingPanel` : il ne prend jamais le focus à l'app de visio.
@@ -106,16 +122,16 @@ Chaque étape est un `actor`. Les étapes communiquent par `AsyncStream`. Seule 
 - Le panel est toujours sur l'écran principal (`NSScreen.screens.first`, celui choisi comme principal dans Réglages > Moniteurs, et non `NSScreen.main` qui suit le focus) et le suit quand la configuration des écrans change.
 - Position calculée depuis `NSScreen.safeAreaInsets` et `auxiliaryTopLeftArea` / `auxiliaryTopRightArea`. Si l'écran principal a une notch, le panel s'intègre avec : même hauteur, il la prolonge de chaque côté. Sans notch (écran externe), fallback en pilule centrée en haut de l'écran.
 - État replié : indicateur discret (écoute active, session Claude prête ou non). État déplié : la dernière suggestion, avec l'historique du call au-dessus. Animation sobre, pas de clignotement.
-- Pendant un call, la notch reste dépliée de la première suggestion à la fin du call. Elle n'affiche que la dernière entrée de l'historique du call : les précédentes sont au-dessus, accessibles en faisant défiler vers le haut, et une nouvelle entrée ramène en bas. Pendant qu'une nouvelle suggestion se prépare, l'ancienne reste la dernière entrée jusqu'au premier mot de la nouvelle. Si Claude répond `-` (rien à suggérer), rien ne change. À la fin du call, la notch se replie et l'historique est effacé, comme la transcription.
+- Pendant un call, la notch reste dépliée de la première suggestion à la fin du call. Elle n'affiche que la dernière entrée de l'historique du call : les précédentes sont au-dessus, accessibles en faisant défiler vers le haut, et une nouvelle entrée ramène en bas. Pendant qu'une nouvelle suggestion se prépare, l'ancienne reste la dernière entrée jusqu'au premier mot de la nouvelle. Si Claude répond `-` (rien à suggérer), rien ne change. À la fin du call, la notch se replie et son historique est effacé ; la transcription, elle, est enregistrée (voir `CallArchive`).
 - Les échecs du call s'ajoutent à l'historique, en rouge : Claude n'a pas pu répondre (réseau coupé, limite d'usage de l'abonnement, erreur de l'API), Claude est indisponible, capture coupée, call sans playbook. Le même échec répété à la suite n'est gardé qu'une fois. Les messages d'état passagers (« Claude redémarre… ») ne sont pas gardés : ils disparaissent une fois le problème réglé. Un échec du démarrage du call est affiché en rouge 20 s, puis le call se termine.
 - L'app vit dans la barre de menus (`LSUIElement = YES`), pas d'icône dans le Dock.
 
 ## Confidentialité
 
 - Aucun audio n'est écrit sur disque. Jamais.
-- La transcription se fait en local, mais le texte de la conversation est envoyé à Anthropic par le CLI `claude` pour générer les suggestions, comme la description d'un nouveau profil pour en écrire le prompt. Ce sont les seuls flux de données qui quittent la machine.
-- Le prospect est informé en début de call qu'un assistant prend des notes (obligation d'information du RGPD).
-- Les transcriptions restent en mémoire et sont effacées à la fin du call. Un export manuel pourra exister plus tard, désactivé par défaut. Ça vaut aussi pour le process `claude`, lancé sans persistance de session (voir Sécurité).
+- La transcription se fait en local, mais le texte de la conversation est envoyé à Anthropic par le CLI `claude` pour générer les suggestions puis le résumé du call, comme la description d'un nouveau profil pour en écrire le prompt. Ce sont les seuls flux de données qui quittent la machine.
+- Le prospect est informé en début de call qu'un assistant prend des notes, conservées 6 mois (obligation d'information du RGPD).
+- Chaque call est enregistré sur le disque avec sa transcription, son résumé et son débrief, puis supprimé automatiquement au bout de 6 mois (voir `CallArchive`). Seul ce texte est gardé, jamais l'audio. Le process `claude`, lui, est lancé sans persistance de session (voir Sécurité).
 - Logs via `os.Logger`. Le contenu des transcriptions et des suggestions est toujours logué avec `privacy: .private`.
 
 ## Sécurité
@@ -132,7 +148,7 @@ Ce que dit le prospect arrive directement dans le prompt : c'est une entrée non
   - `--system-prompt` : remplace le prompt par défaut de Claude Code.
   - `--no-session-persistence` : rien n'est écrit dans `~/.claude/projects/` (vérifié).
   - `--verbose` est obligatoire avec `--output-format stream-json` en mode `-p`, et `--include-partial-messages` fournit le texte token par token (`stream_event` > `content_block_delta`).
-- Génération d'un profil, en un appel, avec les mêmes options d'isolation (vérifiée sur 2.1.310) : `claude -p --output-format json --model opus --tools "" --strict-mcp-config --setting-sources "" --no-session-persistence --system-prompt <prompt>`. La description passe par stdin, et la réponse arrive en un seul objet JSON (`result`, `is_error`).
+- Génération d'un profil ou du résumé d'un call, en un appel, avec les mêmes options d'isolation (vérifiée sur 2.1.310) : `claude -p --output-format json --model opus --tools "" --strict-mcp-config --setting-sources "" --no-session-persistence --system-prompt <prompt>`. La description ou la transcription passe par stdin, et la réponse arrive en un seul objet JSON (`result`, `is_error`).
 - Le CLI réémet un `system/init` à chaque message reçu, pas seulement au lancement : il ne sert pas de signal « session prête ».
 - Une réponse en échec arrive comme une ligne `result` avec `is_error: true` et `subtype: success` : seul `is_error` est fiable.
 - `--bare` est exclu : il ne lit jamais l'OAuth ni le trousseau, donc il est incompatible avec l'abonnement Max.
@@ -170,6 +186,8 @@ NotchCoach/
 │   │   ├── ClaudeSession/
 │   │   ├── Prompting/
 │   │   ├── Call/
+│   │   ├── CallArchive/
+│   │   ├── CallsUI/
 │   │   └── NotchUI/
 │   └── Tests/
 └── Fixtures/             # fichiers audio de calls de test, et le script qui génère le call synthétique
