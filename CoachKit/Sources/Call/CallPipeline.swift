@@ -17,8 +17,9 @@ public actor CallPipeline {
     private let displaysContinuation: AsyncStream<CallDisplay>.Continuation
     private let source: any AudioSource
     private let models: ParakeetModels
-    private let playbookFile: PlaybookFile
-    private let coachInstructions: String
+    private let profile: Profile
+    /// Partie technique du system prompt, fournie par l'app, avec les emplacements du prompt et du playbook du profil.
+    private let coachFrame: String
     private var session: ClaudeSession?
     private var coordinator: ConversationCoordinator?
     /// Affichage de l'échec du démarrage, que `stop()` interrompt.
@@ -27,14 +28,14 @@ public actor CallPipeline {
     private var stopWaiter: CheckedContinuation<Void, Never>?
     private var isStopped = false
 
-    /// `models` peut servir d'un call à l'autre : seul le premier les charge. `coachInstructions` : consignes du coach,
-    /// avec l'emplacement du playbook.
-    public init(source: any AudioSource, models: ParakeetModels, playbookFile: PlaybookFile, coachInstructions: String) {
+    /// `models` peut servir d'un call à l'autre : seul le premier les charge. `profile` : profil actif au démarrage du
+    /// call. `coachFrame` : partie technique du system prompt, avec les emplacements `{{prompt}}` et `{{playbook}}`.
+    public init(source: any AudioSource, models: ParakeetModels, profile: Profile, coachFrame: String) {
         (displays, displaysContinuation) = AsyncStream.makeStream()
         self.source = source
         self.models = models
-        self.playbookFile = playbookFile
-        self.coachInstructions = coachInstructions
+        self.profile = profile
+        self.coachFrame = coachFrame
     }
 
     /// Déroule le call : lit le playbook, prépare les modèles et lance Claude, puis transcrit la source et suggère
@@ -45,16 +46,24 @@ public actor CallPipeline {
             displaysContinuation.yield(CallDisplay())
             displaysContinuation.finish()
         }
-        // Lu à chaque call : une modification du playbook compte dès le call suivant. Inutilisable, il est ignoré
-        // plutôt que de priver le call de suggestions.
+        // Prompt et playbook sont lus à chaque call : une modification compte dès le call suivant. Sans son prompt,
+        // Claude ne saurait pas quel rôle jouer : le call ne démarre pas.
+        let prompt: String
+        do {
+            prompt = try profile.loadPrompt()
+        } catch {
+            await showStartFailure(error)
+            return
+        }
+        // Un playbook inutilisable est ignoré plutôt que de priver le call de suggestions.
         var playbook = Playbook(markdown: "")
         var playbookError: PromptingError?
         do {
-            playbook = try playbookFile.load()
+            playbook = try profile.playbookFile.load()
         } catch {
             playbookError = error
         }
-        let systemPrompt = SystemPrompt.text(instructions: coachInstructions, playbook: playbook)
+        let systemPrompt = SystemPrompt.text(frame: coachFrame, prompt: prompt, playbook: playbook)
         let session = ClaudeSession(options: ClaudeSessionOptions(systemPrompt: systemPrompt))
         self.session = session
         do {

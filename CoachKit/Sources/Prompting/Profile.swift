@@ -21,4 +21,14 @@ public struct Profile: Equatable, Hashable, Identifiable, Sendable {
 
     /// Informations de l'utilisateur, ajoutées au system prompt.
     public var playbookURL: URL { directory.appending(component: "playbook.md") }
+
+    /// Lit le prompt du profil.
+    public func loadPrompt() throws(PromptingError) -> String {
+        fatalError("TODO")
+    }
+
+    /// Playbook du profil, recréé vide s'il a été supprimé.
+    public var playbookFile: PlaybookFile {
+        fatalError("TODO")
+    }
 }

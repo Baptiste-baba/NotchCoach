@@ -2,8 +2,6 @@ import Foundation
 
 /// Fichier Markdown du playbook, éditable par l'utilisateur. Créé depuis un modèle à remplir s'il n'existe pas encore.
 public struct PlaybookFile: Equatable, Sendable {
-    /// `~/Library/Application Support/NotchCoach/playbook.md` : l'app n'est pas sandboxée.
-    public static let standardURL = URL.applicationSupportDirectory.appending(components: "NotchCoach", "playbook.md")
     /// Environ 20 pages. Au-delà, le playbook ralentirait chaque suggestion.
     public static let maximumLength = 50_000
 
@@ -12,7 +10,7 @@ public struct PlaybookFile: Equatable, Sendable {
     /// Contenu du fichier à sa création : les rubriques vides, à remplir.
     let template: String
 
-    public init(url: URL = PlaybookFile.standardURL, template: String) {
+    public init(url: URL, template: String) {
         self.url = url
         self.template = template
     }

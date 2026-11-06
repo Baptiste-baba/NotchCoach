@@ -14,4 +14,10 @@ public enum SystemPrompt {
         }
         return instructions.replacingOccurrences(of: playbookPlaceholder, with: markdown)
     }
+
+    /// System prompt d'un call : la partie technique fournie par l'app (`frame`), où `{{prompt}}` est remplacé par le
+    /// prompt du profil et `{{playbook}}` par son playbook.
+    public static func text(frame: String, prompt: String, playbook: Playbook) -> String {
+        fatalError("TODO")
+    }
 }

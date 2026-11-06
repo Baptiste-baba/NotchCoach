@@ -14,28 +14,29 @@ final class CallController {
     private(set) var isCallActive = false
 
     @ObservationIgnored private let notch: NotchPanelController
-    @ObservationIgnored private let playbookFile: PlaybookFile
+    /// Fournit le profil actif au démarrage de chaque call.
+    @ObservationIgnored private let profiles: ProfileController
     /// Fichier rejoué à la place de la vraie capture, à chaque call ; `nil` hors mode replay.
     @ObservationIgnored private let replayFile: URL?
     /// Gardés d'un call à l'autre : seul le premier call charge les modèles.
     @ObservationIgnored private let models = ParakeetModels()
     @ObservationIgnored private var pipeline: CallPipeline?
 
-    init(notch: NotchPanelController, playbookFile: PlaybookFile, replayFile: URL?) {
+    init(notch: NotchPanelController, profiles: ProfileController, replayFile: URL?) {
         self.notch = notch
-        self.playbookFile = playbookFile
+        self.profiles = profiles
         self.replayFile = replayFile
     }
 
-    /// Démarre un call : la vraie capture, ou le fichier rejoué depuis le début en mode replay.
+    /// Démarre un call avec le profil actif : la vraie capture, ou le fichier rejoué depuis le début en mode replay.
     func startCall() {
-        guard pipeline == nil else { return }
+        guard pipeline == nil, let profile = profiles.activeProfile else { return }
         let source: any AudioSource = if let replayFile { ReplayAudioSource(file: replayFile) } else { LiveAudioSource() }
         let pipeline = CallPipeline(
             source: source,
             models: models,
-            playbookFile: playbookFile,
-            coachInstructions: BundledPrompt.text(named: "coach-system")
+            profile: profile,
+            coachFrame: BundledPrompt.text(named: "coach-frame")
         )
         self.pipeline = pipeline
         isCallActive = true
