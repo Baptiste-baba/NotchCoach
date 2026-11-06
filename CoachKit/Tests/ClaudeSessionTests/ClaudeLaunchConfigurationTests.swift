@@ -6,10 +6,15 @@ struct ClaudeLaunchConfigurationTests {
     let executable = URL(filePath: "/Users/test/.local/bin/claude")
     let workingDirectory = URL(filePath: "/Users/test/Library/Application Support/NotchCoach/ClaudeWorkingDirectory")
 
-    func configuration(environment: [String: String] = [:]) -> ClaudeLaunchConfiguration {
+    func configuration(
+        mode: ClaudeLaunchConfiguration.Mode = .streaming,
+        model: String = "haiku",
+        environment: [String: String] = [:]
+    ) -> ClaudeLaunchConfiguration {
         ClaudeLaunchConfiguration(
             executableURL: executable,
-            options: ClaudeSessionOptions(systemPrompt: "Tu es un coach."),
+            options: ClaudeSessionOptions(model: model, systemPrompt: "Tu es un coach."),
+            mode: mode,
             workingDirectory: workingDirectory,
             parentEnvironment: environment
         )
@@ -29,6 +34,29 @@ struct ClaudeLaunchConfigurationTests {
             "--no-session-persistence",
             "--system-prompt", "Tu es un coach.",
         ])
+    }
+
+    @Test func singleResponseUsesTheVerifiedOneShotCommandLine() {
+        #expect(configuration(mode: .singleResponse, model: "opus").arguments == [
+            "-p",
+            "--output-format", "json",
+            "--model", "opus",
+            "--tools", "",
+            "--strict-mcp-config",
+            "--setting-sources", "",
+            "--no-session-persistence",
+            "--system-prompt", "Tu es un coach.",
+        ])
+    }
+
+    @Test func bothModesShareTheSameIsolation() {
+        let streaming = configuration(mode: .streaming)
+        let singleResponse = configuration(mode: .singleResponse)
+        let isolation = { (arguments: [String]) in arguments.drop { $0 != "--model" } }
+
+        #expect(isolation(streaming.arguments) == isolation(singleResponse.arguments))
+        #expect(streaming.environment == singleResponse.environment)
+        #expect(streaming.workingDirectory == singleResponse.workingDirectory)
     }
 
     @Test func neverAllowsTools() {
