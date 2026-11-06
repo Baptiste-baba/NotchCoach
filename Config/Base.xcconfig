@@ -11,6 +11,8 @@ ARCHS = arm64
 PRODUCT_NAME = $(TARGET_NAME)
 PRODUCT_BUNDLE_IDENTIFIER = io.github.baptiste-baba.NotchCoach
 MARKETING_VERSION = 1.0
+// L'app est en français : sans ça, macOS lui donne ses messages d'erreur en anglais.
+DEVELOPMENT_LANGUAGE = fr
 CURRENT_PROJECT_VERSION = 1
 ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon
 
