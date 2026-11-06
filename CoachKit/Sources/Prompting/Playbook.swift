@@ -1,5 +1,5 @@
-/// Playbook commercial de l'utilisateur : offre, cible, pricing, objections fréquentes et réponses validées.
-/// Ajouté au system prompt de Claude au lancement de chaque session.
+/// Playbook d'un profil : les informations de l'utilisateur (offre, pricing et objections pour la vente, parcours et
+/// projets pour un entretien). Ajouté au system prompt de Claude au lancement de chaque session.
 public struct Playbook: Equatable, Sendable {
     /// Contenu Markdown, tel que l'utilisateur l'a écrit.
     public var markdown: String
